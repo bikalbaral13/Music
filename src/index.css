@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* abcjs renders SVG into a container — give it a light background so notes are readable on dark theme */
+.abc-render {
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+.abc-render svg {
+  max-width: 100%;
+  height: auto;
+}
+.abc-render .abcjs-cursor {
+  stroke: #ef4444;
+  stroke-width: 2;
+}
+.abc-render .abcjs-highlight {
+  fill: #ef4444 !important;
+}
+
+/* Hide the default abcjs synth UI border */
+.abcjs-inline-audio {
+  background: transparent !important;
+  padding: 0 !important;
+}
