@@ -10,10 +10,10 @@ import { transposeKey } from '../lib/midi';
 
 interface Props { song: Song; }
 
-interface AbcEvent {
-  midiPitches?: { pitch: number; durationInMeasures: number; volume: number; instrument: number }[];
-  milliseconds?: number;
-}
+// Loose typing — abcjs's CursorControl.onEvent uses NoteTimingEvent whose
+// midiPitches shape is wider than what we read here. Treat as any to avoid
+// fighting upstream type drift.
+type AbcEvent = any;
 
 // Map a MIDI number to a chromatic note letter using sharp spelling (C, C#, D, ... B).
 function midiToNoteLetter(midi: number): string {

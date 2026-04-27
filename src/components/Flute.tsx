@@ -67,7 +67,8 @@ const THREAD_POSITIONS = [240, 880];
 
 export default function Flute({ note, bansuriScale }: Props) {
   const relativeNote = note ? toRelativeNote(note, bansuriScale) : null;
-  const fingering = (relativeNote && FINGERINGS[relativeNote]) ?? ['open','open','open','open','open','open'];
+  const fingering: HoleState[] = (relativeNote ? FINGERINGS[relativeNote] : undefined)
+    ?? ['open','open','open','open','open','open'];
   const embRadius = HOLE_DIAMETERS[0] / 2;
 
   return (
