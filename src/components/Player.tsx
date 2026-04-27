@@ -5,7 +5,10 @@ import { GM_INSTRUMENTS } from '../types';
 import PianoView from './PianoView';
 import Flute, { BANSURI_SCALES } from './Flute';
 import GuitarTabs from './GuitarTabs';
+import UkuleleTabs from './UkuleleTabs';
+import ViolinView from './ViolinView';
 import HarmoniumView from './HarmoniumView';
+import NoteBlocksView from './NoteBlocksView';
 import { transposeKey } from '../lib/midi';
 
 interface Props { song: Song; }
@@ -35,10 +38,6 @@ export default function Player({ song }: Props) {
   const [instrument, setInstrument] = useState(0);
   const [showLabels, setShowLabels] = useState(true);
   const [metronome, setMetronome] = useState(false);
-  const [loopEnabled, setLoopEnabled] = useState(false);
-  const [loopStart, setLoopStart] = useState(0);
-  const [loopEnd, setLoopEnd] = useState(0);
-  const [practiceMode, setPracticeMode] = useState(false);
   const [capo, setCapo] = useState(0);
   const [bansuriScaleIdx, setBansuriScaleIdx] = useState(0);
   const bansuriScale = BANSURI_SCALES[bansuriScaleIdx];
@@ -85,13 +84,11 @@ export default function Player({ song }: Props) {
           beatSubdivisions: 2,
           onStart: () => {
             audioStartCtxRef.current = audioCtx.currentTime;
-            tickFrame();
+            // Avoid stacking rAF loops if handlePlay already started one for us.
+            if (rafRef.current === null) tickFrame();
           },
           onFinished: () => {
             setActiveMidi(new Set());
-            if (loopEnabled) {
-              try { synthControlRef.current?.restart(); } catch { /* noop */ }
-            }
           },
           onEvent: (ev: AbcEvent) => {
             if (!ev?.midiPitches) return;
@@ -99,9 +96,6 @@ export default function Player({ song }: Props) {
             const next = new Set<number>();
             for (const p of ev.midiPitches) next.add(p.pitch);
             setActiveMidi(next);
-            if (loopEnabled && loopEnd > loopStart && (ev.milliseconds ?? 0) >= loopEnd) {
-              try { synthControlRef.current?.restart(); } catch { /* noop */ }
-            }
           },
           onBeat: () => {
             if (metronome) {
@@ -118,7 +112,7 @@ export default function Player({ song }: Props) {
 
         const synthControl = new abcjs.synth.SynthController();
         synthControl.load('#abc-audio', cursorControl, {
-          displayLoop: true, displayRestart: true, displayPlay: true, displayProgress: true, displayWarp: true,
+          displayLoop: false, displayRestart: true, displayPlay: true, displayProgress: true, displayWarp: true,
         });
         await synthControl.setTune(visualObj, false, {
           qpm: song.tempo,
@@ -164,11 +158,33 @@ export default function Player({ song }: Props) {
   }, []);
 
   async function handlePlay() {
-    if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume();
+    const ctx = audioCtxRef.current;
+    if (ctx?.state === 'suspended') await ctx.resume();
+    // After a pause, abcjs resumes without re-firing onStart, so we have to
+    // realign audioStartCtxRef with the frozen currentMs to keep the elapsed-
+    // time math (and therefore the block highlight) continuous.
+    if (ctx && rafRef.current === null) {
+      audioStartCtxRef.current = ctx.currentTime - currentMs / 1000;
+      tickFrame();
+    }
     try { await synthControlRef.current?.play(); } catch (e) { setError((e as Error).message); }
   }
-  function handlePause() { try { synthControlRef.current?.pause(); } catch { /* noop */ } }
-  function handleRestart() { try { synthControlRef.current?.restart(); } catch { /* noop */ } }
+  function handlePause() {
+    try { synthControlRef.current?.pause(); } catch { /* noop */ }
+    // Freeze the timeline so the note-blocks highlight and instrument visual
+    // stop progressing along with the sound.
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }
+  function handleRestart() {
+    try { synthControlRef.current?.restart(); } catch { /* noop */ }
+    // restart() re-fires onStart which resets audioStartCtxRef and re-arms
+    // the rAF loop; just clear the lingering visual state from before.
+    setActiveMidi(new Set());
+    setCurrentMs(0);
+  }
 
   return (
     <div className="space-y-4">
@@ -183,18 +199,25 @@ export default function Player({ song }: Props) {
         </div>
       )}
 
-      {/* Instrument-driven visual: Piano keyboard, Flute SVG, or Guitar tablature */}
+      {/* Note timeline — every note in the song laid out as blocks (width ∝ duration).
+          The currently sounding block is highlighted as playback progresses. */}
+      <NoteBlocksView abc={song.abc} currentMs={currentMs} tempo={tempo} />
+
+      {/* Instrument-driven visual: every instrument shares the same canvas size for layout
+          stability when switching between them. Auxiliary controls live below the canvas. */}
       {instrument === 0 && (
-        <div className="rounded-md bg-slate-900 border border-slate-800 p-4">
+        <div className="instrument-canvas">
           <PianoView activeMidi={activeMidi} showLabels={showLabels} />
         </div>
       )}
       {instrument === 73 && (
         <div className="space-y-2">
-          <Flute
-            note={activeMidi.size > 0 ? midiToNoteLetter(Math.min(...activeMidi)) : null}
-            bansuriScale={bansuriScale}
-          />
+          <div className="instrument-canvas">
+            <Flute
+              note={activeMidi.size > 0 ? midiToNoteLetter(Math.min(...activeMidi)) : null}
+              bansuriScale={bansuriScale}
+            />
+          </div>
           <div className="flex items-center gap-3 bg-stone-100 border border-stone-300 rounded-md px-3 py-2">
             <label className="text-xs font-medium text-stone-800 whitespace-nowrap">
               Bansuri scale: <span className="font-mono">{bansuriScale}</span>
@@ -215,7 +238,9 @@ export default function Player({ song }: Props) {
       )}
       {instrument === 24 && (
         <div className="space-y-2">
-          <GuitarTabs activeMidi={activeMidi} showLabels={showLabels} capo={capo} />
+          <div className="instrument-canvas">
+            <GuitarTabs activeMidi={activeMidi} showLabels={showLabels} capo={capo} />
+          </div>
           <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
             <label className="text-xs font-medium text-amber-900 whitespace-nowrap">
               Capo: {capo === 0 ? 'Off' : `Fret ${capo}`}
@@ -234,7 +259,36 @@ export default function Player({ song }: Props) {
         </div>
       )}
       {instrument === 20 && (
-        <HarmoniumView activeMidi={activeMidi} showLabels={showLabels} isPumping={activeMidi.size > 0} />
+        <div className="instrument-canvas">
+          <HarmoniumView activeMidi={activeMidi} showLabels={showLabels} isPumping={activeMidi.size > 0} />
+        </div>
+      )}
+      {instrument === 40 && (
+        <div className="instrument-canvas">
+          <ViolinView activeMidi={activeMidi} showLabels={showLabels} />
+        </div>
+      )}
+      {instrument === 25 && (
+        <div className="space-y-2">
+          <div className="instrument-canvas">
+            <UkuleleTabs activeMidi={activeMidi} showLabels={showLabels} capo={capo} />
+          </div>
+          <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-md px-3 py-2">
+            <label className="text-xs font-medium text-rose-900 whitespace-nowrap">
+              Capo: {capo === 0 ? 'Off' : `Fret ${capo}`}
+            </label>
+            <input
+              type="range" min={0} max={10} step={1} value={capo}
+              onChange={(e) => setCapo(Number(e.target.value))}
+              className="flex-1 accent-rose-700"
+            />
+            <div className="flex gap-0.5 text-[10px] text-rose-800">
+              {Array.from({ length: 11 }).map((_, i) => (
+                <span key={i} className="w-5 text-center">{i}</span>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* abcjs needs the sheet container in the DOM for its synth/cursor; keep it off-screen */}
@@ -242,8 +296,10 @@ export default function Player({ song }: Props) {
         <div ref={sheetRef} className="abc-render" />
       </div>
 
-      {/* Built-in abcjs audio control bar */}
-      <div id="abc-audio" className="bg-slate-100 rounded-md p-2" />
+      {/* abcjs's SynthController needs this element to exist in the DOM, but we
+          drive playback exclusively through our own buttons — hide the built-in
+          bar so it can't desync from our pause/restart state. */}
+      <div id="abc-audio" className="hidden" />
 
       {/* Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900 border border-slate-800 rounded-md p-4">
@@ -294,32 +350,6 @@ export default function Player({ song }: Props) {
           <input type="checkbox" checked={metronome} onChange={(e) => setMetronome(e.target.checked)} />
           Metronome click
         </label>
-
-        <label className="inline-flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={practiceMode} onChange={(e) => setPracticeMode(e.target.checked)} />
-          Practice mode (Web MIDI — coming soon)
-        </label>
-
-        <div className="md:col-span-2 border-t border-slate-800 pt-3">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
-            Loop section A↔B
-          </label>
-          {loopEnabled && (
-            <div className="mt-2 flex gap-2 items-center text-xs text-slate-300 flex-wrap">
-              <span>A:</span>
-              <input type="number" value={loopStart} onChange={(e) => setLoopStart(Number(e.target.value))}
-                className="w-24 bg-slate-950 border border-slate-700 rounded px-2 py-1"/> ms
-              <button onClick={() => setLoopStart(Math.round(currentMs))}
-                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Set A from cursor</button>
-              <span>B:</span>
-              <input type="number" value={loopEnd} onChange={(e) => setLoopEnd(Number(e.target.value))}
-                className="w-24 bg-slate-950 border border-slate-700 rounded px-2 py-1"/> ms
-              <button onClick={() => setLoopEnd(Math.round(currentMs))}
-                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Set B from cursor</button>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

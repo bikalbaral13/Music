@@ -95,4 +95,187 @@ Q:1/4=90
 K:C
 CDEF GABc | cBAG FEDC |`,
   },
+  {
+    id: 'sample-happy-birthday',
+    title: 'Happy Birthday to You',
+    composer: 'Patty & Mildred Hill (1893)',
+    scale: 'G',
+    tempo: 80,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Happy Birthday to You
+C:Patty & Mildred Hill (1893)
+M:3/4
+L:1/8
+Q:1/4=80
+K:G
+D D | E2 D2 G2 | F6 | D D | E2 D2 A2 | G6 |
+D D | d2 B2 G2 | F2 E2 c2 | c c B2 G2 | A2 G6 |]`,
+  },
+  {
+    id: 'sample-jingle-bells',
+    title: 'Jingle Bells',
+    composer: 'James Lord Pierpont (1857)',
+    scale: 'G',
+    tempo: 120,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Jingle Bells (chorus)
+C:James Lord Pierpont (1857)
+M:4/4
+L:1/8
+Q:1/4=120
+K:G
+B2 B2 B4 | B2 B2 B4 | B2 B2 G2 A2 | B8 |
+c2 c2 c2 c2 | c2 B2 B2 B2 | B2 A2 A2 B2 | A4 D4 |
+B2 B2 B4 | B2 B2 B4 | B2 B2 G2 A2 | B8 |
+c2 c2 c2 c2 | c2 B2 B2 B2 | d2 d2 c2 A2 | G8 |]`,
+  },
+  {
+    id: 'sample-mary-lamb',
+    title: 'Mary Had a Little Lamb',
+    composer: 'Traditional (Sarah Josepha Hale, 1830)',
+    scale: 'C',
+    tempo: 100,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Mary Had a Little Lamb
+C:Traditional / Sarah Josepha Hale (1830)
+M:4/4
+L:1/4
+Q:1/4=100
+K:C
+E D C D | E E E2 | D D D2 | E G G2 |
+E D C D | E E E E | D D E D | C4 |]`,
+  },
+  {
+    id: 'sample-amazing-grace',
+    title: 'Amazing Grace',
+    composer: 'John Newton (1779)',
+    scale: 'G',
+    tempo: 80,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Amazing Grace
+C:John Newton (1779)
+M:3/4
+L:1/8
+Q:1/4=80
+K:G
+D2 | G3 B G2 | B3 A G2 | E6 | D6 |
+G3 B G2 | B3 A B2 | d6 | d4 z2 |
+e3 d B2 | d3 B G2 | E6 | D6 |
+G3 B G2 | B3 A G2 | G6 | G4 z2 |]`,
+  },
+  {
+    id: 'sample-greensleeves',
+    title: 'Greensleeves',
+    composer: 'Traditional (English, 16th c.)',
+    scale: 'Am',
+    tempo: 80,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Greensleeves
+C:Traditional (English, 16th c.)
+M:6/8
+L:1/8
+Q:3/8=80
+K:Am
+A | c2 d e2 ^f | e2 d B2 G | A2 B c2 A | A2 ^G E2 A |
+c2 d e2 ^f | e2 d B2 G | A2 ^G F2 E | E3 A3 |
+g3 g2 ^f | e2 d B2 G | A2 B c2 A | A2 ^G E2 A |
+g3 g2 ^f | e2 d B2 G | A2 ^G F2 E | E3 A3 |]`,
+  },
+  {
+    id: 'sample-when-saints',
+    title: 'When the Saints Go Marching In',
+    composer: 'Traditional (American Spiritual)',
+    scale: 'F',
+    tempo: 120,
+    createdAt: Date.now(),
+    abc: `X:1
+T:When the Saints Go Marching In
+C:Traditional (American Spiritual)
+M:4/4
+L:1/4
+Q:1/4=120
+K:F
+F A | c2 z F | A c B A | c4 |
+z F A c | B A G F | E G A2 | F4 |
+c c c B | A2 z F | A c B A | c2 z2 |
+A G F G | A G F E | F4 | F4 |]`,
+  },
+  {
+    id: 'sample-auld-lang-syne',
+    title: 'Auld Lang Syne',
+    composer: 'Robert Burns (1788)',
+    scale: 'F',
+    tempo: 90,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Auld Lang Syne
+C:Robert Burns (1788) / Trad. Scottish
+M:4/4
+L:1/8
+Q:1/4=90
+K:F
+C2 | F4 F2 A2 | A4 G2 c2 | d4 c2 A2 | A4 F2 G2 |
+A4 G2 A2 | F4 D2 D2 | C4 D2 F2 | F6 A2 |
+c4 A2 F2 | F4 G2 A2 | c4 A2 F2 | F4 G2 A2 |
+G4 D2 F2 | F4 D2 G2 | F4 D2 D2 | C6 |]`,
+  },
+  {
+    id: 'sample-frere-jacques',
+    title: 'Frère Jacques',
+    composer: 'Traditional (French)',
+    scale: 'C',
+    tempo: 120,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Frère Jacques
+C:Traditional (French)
+M:4/4
+L:1/4
+Q:1/4=120
+K:C
+C D E C | C D E C | E F G2 | E F G2 |
+G/2A/2 G/2F/2 E C | G/2A/2 G/2F/2 E C | C G, C2 | C G, C2 |]`,
+  },
+  {
+    id: 'sample-yankee-doodle',
+    title: 'Yankee Doodle',
+    composer: 'Traditional (American, 18th c.)',
+    scale: 'G',
+    tempo: 120,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Yankee Doodle
+C:Traditional (American, 18th c.)
+M:2/4
+L:1/8
+Q:1/4=120
+K:G
+G2 G A | B2 c2 | B A G B | A4 |
+G2 G A | B2 c B | A G F G | A2 D2 |
+G2 G A | B2 c2 | B A G B | A2 G2 |
+D2 E2 | F2 G2 | A2 D2 | G4 |]`,
+  },
+  {
+    id: 'sample-fur-elise',
+    title: 'Für Elise (theme)',
+    composer: 'Ludwig van Beethoven (1810)',
+    scale: 'Am',
+    tempo: 60,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Für Elise (theme)
+C:Ludwig van Beethoven (1810)
+M:3/8
+L:1/16
+Q:1/8=120
+K:Am
+e ^d | e ^d e B d c | A3 z C E | A3 z B,2 | E3 z ^G B |
+c3 z B e | e ^d e ^d e B | d c A3 z | C E A3 z |
+B2 E3 c | B3 z A2 |]`,
+  },
 ];

@@ -135,9 +135,6 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-slate-800 text-xs text-slate-500 px-4 py-3 text-center">
-        Built with abcjs · Tailwind v4 · Vite. All songs stored locally in your browser.
-      </footer>
     </div>
   );
 }

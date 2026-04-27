@@ -24,3 +24,27 @@
   background: transparent !important;
   padding: 0 !important;
 }
+
+/* Uniform instrument visual area — every instrument's primary visual occupies
+   this same-sized rectangle so switching between them doesn't shift the layout.
+   Content keeps its own aspect ratio and is centered inside. */
+.instrument-canvas {
+  height: 280px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: rgb(15 23 42 / 0.6);
+  border: 1px solid rgb(30 41 59);
+  padding: 0.5rem;
+}
+.instrument-canvas > * {
+  width: 100%;
+  max-height: 100%;
+  margin: 0 !important;
+}
+.instrument-canvas svg {
+  max-height: 100%;
+}

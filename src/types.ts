@@ -25,4 +25,6 @@ export const GM_INSTRUMENTS: { value: number; label: string }[] = [
   { value: 24, label: 'Guitar' },
   { value: 73, label: 'Flute' },
   { value: 20, label: 'Harmonium' }, // GM 20 = Reed Organ — closest to harmonium timbre
+  { value: 25, label: 'Ukulele' },   // GM 25 = Acoustic Guitar (steel) — closest plucked timbre to a uke
+  { value: 40, label: 'Violin' },    // GM 40 = Violin
 ];
