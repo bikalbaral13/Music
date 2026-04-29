@@ -304,4 +304,141 @@ e ^d | e ^d e B d c | A3 z C E | A3 z B,2 | E3 z ^G B |
 c3 z B e | e ^d e ^d e B | d c A3 z | C E A3 z |
 B2 E3 c | B3 z A2 |]`,
   },
+  {
+    id: 'sample-tum-hi-ho',
+    title: 'Tum Hi Ho (Aashiqui 2 theme)',
+    composer: 'Mithoon',
+    scale: 'A',
+    tempo: 80,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Tum Hi Ho (Aashiqui 2 theme)
+C:Mithoon
+M:4/4
+L:1/8
+Q:1/4=80
+K:A
+% Prelude (x4):  ,D S G G M S R ,N
+|: F A c c d A B G :|
+% Verse line 1
+c2 f e e d d c B A B d c2 |
+% Verse line 2
+B B A B B A G F E F E F |
+% Verse line 3 (Tujh se juda...)
+c c f e e d d c B A B e d c2 |
+% Verse line 4
+A B B B A B B A G F E F E F |
+% Hook "tum hi ho" 1
+A B c A B A B c A B |
+% Hook tail (zindagi...)
+G B A G F G E F G A B |
+% Chain bhi
+c A B A B c A B |
+% Meri aashiqui
+G G G B A G F G E F4 |
+% Interlude (melodica): F G A B  B c B A G  B c B A G  A B A G F G F
+F G A B | B c B A G | B c B A G | A B A G F G F |
+% Antara 1
+c f e e d d c B A B d c2 |
+B B A B B B A G F E F E F |
+c f e e d d c B A B d c2 |
+B B B A B B A G F E F E F |
+E F G G G G G d d c B c B |
+c f e f e c c B B A B A G A G |
+% Antara 2
+f f e e f f g g e e |
+c c d d f f g g e e |
+d d c d c d c B A A d c |
+d d c d c e d c B A A d c |
+E F G G F G G d d c c B c B c |
+c f e f f c c B B A B A G A G |
+% Conclude (modulated hook)
+c e f c e c e f c e |
+B e d c B c A B c d e |
+f c e c e f c e |
+G G G B A G F G E F4 |]`,
+  },
+  {
+    id: 'sample-krishna-govind',
+    title: 'Shri Krishna Govind Hare Murari',
+    composer: 'Traditional bhajan (popular setting: Ravindra Jain, 1993)',
+    scale: 'C',
+    tempo: 90,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Shri Krishna Govind Hare Murari
+C:Traditional bhajan
+M:4/4
+L:1/8
+Q:1/4=90
+K:C
+% Sthayi (refrain) — Sa = C; original scale F#, Kaherva 8-beat
+% ,P S S S S S  G R G R S ,N ,N
+G, C C C C C  E D E D C B, B, |
+% ,N R R G M G  R G R S S S
+B, D D E F E  D E D C C C2 |
+% Antara
+% G G P P P P P P  D P M G R
+E E G G G G G G  A G F E D2 |
+% P P S' S' S' P P P P  D P M G R
+G G c c c G G G G  A G F E D2 |
+% Return to sthayi
+G, C C C C C  E D E D C B, B, |
+B, D D E F E  D E D C C C2 |]`,
+  },
+  {
+    id: 'sample-user-melody-1',
+    title: 'Custom Melody',
+    composer: 'User',
+    scale: 'C',
+    tempo: 100,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Custom Melody
+M:none
+L:1/8
+Q:1/4=100
+K:C
+A D C B2 A G F E | D E F E D C D A | A D C B2 A G F E | D E F E D C D A |
+B2 G F E D C D C | D G A B2 C D E D | C B2 A A G F E D | C C D A B2 C D E |
+D C C D F E D A | D C B2 A d e A D | C B2 A d e f e D | C B2 A G f e D C D |
+D C B2 A d e D C | B2 A d e f e D C | B2 A G f e D C D |
+a c d f d c a g | f e d c B2 A G F E D | a c d f d c a g | f e d c B2 A G F E D |
+D E F G A B2 c b2 a g f e D | D E F G A B2 c b2 a g f e D |
+A D C B2 A G F E | D E F E D C D A | A D C B2 A G F E | D E F E D C D A |
+A D C B2 A G F E | D E F E D C D A | A D C B2 A G F E | D E F E D C D A |
+G F E D C B2 A C | B2 A G F E D D E | F G A B2 c A G F | E D C B2 A G F E | D C B2 A |
+A D C B2 A d e A | D C B2 A d e f e | D C B2 A G f e D C D |
+D C B2 A d e D C | B2 A d e f e D C | B2 A G f e D C D |
+a c d f d c a g | f e d c B2 A G F E D | a c d f d c a g | f e d c B2 A G F E D |
+D E F G A B2 c b2 a g f e D | D E F G A B2 c b2 a g f e D |
+A D C B2 A G F E | D E F E D C D A | A D C B2 A G F E | D E F E D C D A |
+G F E D C B2 A C | B2 A G F E D |
+A D C B2 A G F E | D E F E D C D A | G F E D C B2 A C | B2 A G F E D |
+D E F G A B2 c A | G F E D C B2 A | A B2 C D C B2 A |
+A D C B2 A d e A | D C B2 A d e f e | D C B2 A G f e D C D |
+D C B2 A d e D C | B2 A d e f e D C | B2 A G f e D C D |
+a d c b2 a d e a | d c b2 a d e f e | d c b2 a g f e d c d |
+d c b2 a d e d c | b2 a d e f e d c | b2 a g f e d c d |]`,
+  },
+  {
+    id: 'sample-fulko-ankhama-v2',
+    title: 'Fulko Aankhama (variant)',
+    composer: 'Traditional (Nepali)',
+    scale: 'C',
+    tempo: 100,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Fulko Aankhama (variant)
+C:Traditional (Nepali)
+M:4/4
+L:1/16
+Q:1/4=100
+K:C
+c2 c A c2 d2 e8 | e d e2 f2 e2 d8 | d4 c2 A2 c2 d2 e4 | d2 d c d e d2 c8 |
+g2 g2 e2 g2 a4 a4 | g2 g2 f2 e2 d8 | d4 c2 A2 c2 d2 e4 | d2 d c d e d2 c8 |
+c2 c A c2 d2 e8 | e d e2 f2 e2 d8 | d4 c2 A2 c2 d2 e4 | d2 d c d e d2 c8 |
+d2 d c d e d2 c8 |
+c2 c A c2 d2 e8 | e d e2 f2 e2 d8 | d4 c2 A2 c2 d2 e4 | d2 d c d e d2 c8 |]`,
+  },
 ];

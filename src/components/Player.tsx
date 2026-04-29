@@ -217,23 +217,36 @@ export default function Player({ song }: Props) {
     }
     setIsPlaying(false);
   }
-  function handleRestart() {
-    // Stop the synth no matter what state we're in (abcjs's own restart()
-    // re-starts playback, which isn't what we want — the user expects "stop
-    // and rewind").
+  async function handleRestart() {
+    // Hard-reset: pause, then re-init the tune so any in-flight scheduled
+    // audio is dropped and abcjs's internal cursor returns to 0. seek(0) alone
+    // leaves notes ringing and sometimes resumes playback.
     const ctrl = synthControlRef.current;
     try { ctrl?.pause(); } catch { /* noop */ }
-    try { ctrl?.seek(0, 'percent'); } catch { /* noop */ }
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    // Realign the audio clock so a subsequent Play starts cleanly from 0.
+    setActiveMidi(new Set());
+    setIsPlaying(false);
+    setCurrentMs(0);
+
+    if (ctrl && visualObj) {
+      try {
+        await ctrl.setTune(visualObj, false, {
+          qpm: song.tempo,
+          program: instrument,
+          midiTranspose: transpose,
+        });
+        const warpPercent = Math.round((tempo / song.tempo) * 100);
+        try { ctrl.setWarp(warpPercent); } catch { /* noop */ }
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    }
+
     const ctx = audioCtxRef.current;
     if (ctx) audioStartCtxRef.current = ctx.currentTime;
-    setActiveMidi(new Set());
-    setCurrentMs(0);
-    setIsPlaying(false);
   }
   function handleSeek(ratio: number) {
     const ctrl = synthControlRef.current;

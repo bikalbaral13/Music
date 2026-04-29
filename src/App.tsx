@@ -156,7 +156,7 @@ export default function App() {
         )}
         {tab === 'player' && (
           selectedSong ? (
-            <Player song={selectedSong} />
+            <Player key={selectedSong.id} song={selectedSong} />
           ) : (
             <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>
               No song selected. Pick one from the Library.
