@@ -1,4 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import {
+  type Mode,
+  type Notation,
+  type Spelling,
+  SHARP_NAMES,
+  FLAT_NAMES,
+  SARGAM,
+  pcOfKey,
+  preferFlats,
+  westernNameForPc,
+  tonicPcFor,
+} from '../lib/notation';
 
 interface Props {
   abc: string;
@@ -6,33 +18,88 @@ interface Props {
   currentMs: number;
   /** Live tempo (qpm) — used to map wall-clock time onto the parsed ABC timeline. */
   tempo: number;
+  /** User's transpose offset in semitones (from the Sound block). */
+  transpose: number;
+  /** The song's original key (the K: header, also visible in the Sound block).
+      Used as the Sa anchor in Sargam notation. */
+  songKey: string;
+  /** Optional override for the Sa anchor — set to the bansuri's base scale
+      when the flute is the active instrument so the sargam matches what the
+      player actually fingers on that flute. The override is at a fixed
+      absolute pitch and is unaffected by transpose. */
+  saAnchor?: string;
+  // Controlled view preferences — owned by the parent so the Instrument
+  // block (e.g. Flute's top label) can mirror them.
+  mode: Mode;
+  onModeChange: (m: Mode) => void;
+  notation: Notation;
+  onNotationChange: (n: Notation) => void;
+  spelling: Spelling;
+  onSpellingChange: (s: Spelling) => void;
 }
 
 type Token =
   | { kind: 'bar' }
   | {
       kind: 'note';
-      label: string;
-      pitchClass: number; // 0..11 for hue
-      isBlack: boolean;
-      startBeats: number; // quarter-note offsets
+      /** Literal label as written in source, with explicit accidental glyphs. */
+      abcLabel: string;
+      /** Pitch class derived purely from source letters + explicit accidentals. */
+      literalPc: number;
+      /** Pitch class with the K: header's key signature applied. */
+      originalPc: number;
+      /** Sharp-spelling label for the original (key-sig-applied) pitch class. */
+      originalLabel: string;
+      startBeats: number;
       endBeats: number;
     }
   | { kind: 'rest'; startBeats: number; endBeats: number };
 
 interface Parsed {
   tokens: Token[];
-  /** Tempo specified by Q: header (qpm). */
   parsedQpm: number;
+  /** Beats per measure (e.g. 4 for 4/4, 3 for 3/4, 6 for 6/8). */
+  beatsPerMeasure: number;
+  /** Length of one beat in quarter-note units (1 for 4/4, 0.5 for 6/8). */
+  beatUnitQ: number;
 }
 
 const PC_MAP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const isBlackPc = (pc: number) => [1, 3, 6, 8, 10].includes(pc);
 
-// Parse a length suffix at position i ("", "2", "/2", "3/2", "/", "//"). Returns
-// the multiplier applied to the unit note length (L:), and how many chars were
-// consumed.
+// Accidentals introduced by each major key's signature. Minor keys map back
+// to their relative major via MINOR_TO_MAJOR.
+const KEY_SHARPS: Record<string, Record<string, '#' | 'b'>> = {
+  C: {},
+  G: { F: '#' },
+  D: { F: '#', C: '#' },
+  A: { F: '#', C: '#', G: '#' },
+  E: { F: '#', C: '#', G: '#', D: '#' },
+  B: { F: '#', C: '#', G: '#', D: '#', A: '#' },
+  'F#': { F: '#', C: '#', G: '#', D: '#', A: '#', E: '#' },
+  'C#': { F: '#', C: '#', G: '#', D: '#', A: '#', E: '#', B: '#' },
+  F: { B: 'b' },
+  Bb: { B: 'b', E: 'b' },
+  Eb: { B: 'b', E: 'b', A: 'b' },
+  Ab: { B: 'b', E: 'b', A: 'b', D: 'b' },
+  Db: { B: 'b', E: 'b', A: 'b', D: 'b', G: 'b' },
+  Gb: { B: 'b', E: 'b', A: 'b', D: 'b', G: 'b', C: 'b' },
+};
+const MINOR_TO_MAJOR: Record<string, string> = {
+  A: 'C', E: 'G', B: 'D', 'F#': 'A', 'C#': 'E', 'G#': 'B', 'D#': 'F#', 'A#': 'C#',
+  D: 'F', G: 'Bb', C: 'Eb', F: 'Ab', Bb: 'Db', Eb: 'Gb',
+};
+
+function getKeySig(scale: string): Record<string, '#' | 'b'> {
+  const m = scale.trim().match(/^([A-Ga-g])([#b]?)(.*)$/);
+  if (!m) return {};
+  const root = m[1].toUpperCase() + (m[2] ?? '');
+  const suffix = (m[3] ?? '').toLowerCase();
+  const isMinor = suffix.startsWith('m') && !suffix.startsWith('maj');
+  const major = isMinor ? MINOR_TO_MAJOR[root] ?? 'C' : root;
+  return KEY_SHARPS[major] ?? {};
+}
+
 function readLength(code: string, i: number): { value: number; consumed: number } {
   const start = i;
   let num = '';
@@ -44,46 +111,77 @@ function readLength(code: string, i: number): { value: number; consumed: number 
     let d = '';
     while (i < code.length && /[0-9]/.test(code[i])) { d += code[i]; i++; }
     if (d) denom = d;
-    else denom = String(Math.pow(2, slashes)); // "/" = /2, "//" = /4, etc.
+    else denom = String(Math.pow(2, slashes));
   }
   const n = num ? parseInt(num, 10) : 1;
   const dn = denom ? parseInt(denom, 10) : 1;
   return { value: n / dn, consumed: i - start };
 }
 
-// Walk the ABC source and emit a flat token list. Repeats (|:...:|) are
-// expanded once so playback time lines up. Multi-endings, tuplets, ties,
-// inline meta, and grace notes are intentionally not handled — they would
-// require a full parser; this is a best-effort visualizer.
+// Resolve an ABC `M:` value into beat count + beat unit (in quarter notes).
+// `M:C` is common time = 4/4; `M:C|` is cut time = 2/2; `M:none`/`M:free` = no meter.
+function parseMeter(value: string): { beatsPerMeasure: number; beatUnitQ: number } {
+  const v = value.trim();
+  if (v === 'C') return { beatsPerMeasure: 4, beatUnitQ: 1 };
+  if (v === 'C|') return { beatsPerMeasure: 2, beatUnitQ: 2 };
+  const m = v.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!m) return { beatsPerMeasure: 4, beatUnitQ: 1 };
+  const num = +m[1];
+  const den = +m[2];
+  return { beatsPerMeasure: num, beatUnitQ: 4 / den };
+}
+
 function parseAbc(abc: string): Parsed {
   const lines = abc.split(/\r?\n/);
-  let unitLenQuarters = 0.5; // default L:1/8 for our samples
+  let unitLenQuarters = 0.5;
   let parsedQpm = 120;
   let inBody = false;
   let cursor = 0;
+  let keySig: Record<string, '#' | 'b'> = {};
+  let meter = { beatsPerMeasure: 4, beatUnitQ: 1 };
 
   const tokens: Token[] = [];
-  // Indices into `tokens` so we can duplicate sections on `:|`.
   let lastRepeatStart = 0;
 
-  function pushNote(letter: string, octShift: number, lenMul: number, acc: string) {
-    const isLower = letter === letter.toLowerCase();
-    const baseOct = isLower ? 5 : 4; // ABC: 'C'=C4=60, 'c'=C5=72
-    const pc = PC_MAP[letter.toUpperCase()];
-    let midi = (baseOct + 1) * 12 + pc + octShift * 12;
-    if (acc === '^') midi += 1;
-    else if (acc === '_') midi -= 1;
-    else if (acc === '^^') midi += 2;
-    else if (acc === '__') midi -= 2;
+  function pushNote(letter: string, _octShift: number, lenMul: number, acc: string) {
+    const upper = letter.toUpperCase();
+    const naturalPc = PC_MAP[upper];
+
+    // Literal pc — only explicit accidentals in the source modify it.
+    let literalAdj = 0;
+    if (acc === '^') literalAdj = 1;
+    else if (acc === '_') literalAdj = -1;
+    else if (acc === '^^') literalAdj = 2;
+    else if (acc === '__') literalAdj = -2;
+
+    // Original pc — apply key signature when no explicit accidental is present.
+    // `=` (natural) overrides the key sig back to natural.
+    let originalAdj = literalAdj;
+    if (!acc && keySig[upper]) {
+      originalAdj = keySig[upper] === '#' ? 1 : -1;
+    } else if (acc === '=') {
+      originalAdj = 0;
+    }
+
+    const literalPc = ((naturalPc + literalAdj) % 12 + 12) % 12;
+    const originalPc = ((naturalPc + originalAdj) % 12 + 12) % 12;
+
+    const accGlyph =
+      acc === '^' ? '♯' :
+      acc === '_' ? '♭' :
+      acc === '^^' ? '𝄪' :
+      acc === '__' ? '𝄫' :
+      acc === '=' ? '♮' : '';
+
     const durBeats = lenMul * unitLenQuarters;
     const startBeats = cursor;
     cursor += durBeats;
-    const sharp = acc === '^' ? '♯' : acc === '_' ? '♭' : '';
     tokens.push({
       kind: 'note',
-      label: sharp + letter,
-      pitchClass: ((midi % 12) + 12) % 12,
-      isBlack: isBlackPc(midi % 12),
+      abcLabel: accGlyph + upper,
+      literalPc,
+      originalPc,
+      originalLabel: SHARP_NAMES[originalPc],
       startBeats,
       endBeats: cursor,
     });
@@ -100,13 +198,14 @@ function parseAbc(abc: string): Parsed {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // ABC headers are "X:", "T:", ..., "K:"; K: marks the transition to body.
     if (!inBody && /^[A-Za-z]:/.test(trimmed)) {
       const k = trimmed[0];
       const value = trimmed.slice(2).trim();
       if (k === 'L') {
         const m = value.match(/(\d+)\s*\/\s*(\d+)/);
         if (m) unitLenQuarters = 4 * (+m[1] / +m[2]);
+      } else if (k === 'M') {
+        meter = parseMeter(value);
       } else if (k === 'Q') {
         const m = value.match(/(\d+)\s*\/\s*(\d+)\s*=\s*(\d+)/);
         if (m) parsedQpm = ((+m[1] / +m[2]) / 0.25) * +m[3];
@@ -115,21 +214,20 @@ function parseAbc(abc: string): Parsed {
           if (m2) parsedQpm = +m2[1];
         }
       } else if (k === 'K') {
+        keySig = getKeySig(value);
         inBody = true;
       }
       continue;
     }
     if (!inBody) continue;
 
-    const code = trimmed.split('%')[0]; // strip line comments
+    const code = trimmed.split('%')[0];
     let i = 0;
     while (i < code.length) {
       const ch = code[i];
       if (/\s/.test(ch)) { i++; continue; }
 
-      // Bar lines and repeats: consume the whole punctuation cluster.
       if (ch === '|' || ch === ':' || ch === ']' || ch === '[') {
-        // Inline header like [K:G] — skip whole thing.
         if (ch === '[' && /^\[[A-Z]:/.test(code.slice(i))) {
           const close = code.indexOf(']', i);
           if (close > 0) { i = close + 1; continue; }
@@ -143,8 +241,6 @@ function parseAbc(abc: string): Parsed {
           tokens.push({ kind: 'bar' });
           lastRepeatStart = tokens.length;
         } else if (cluster.includes(':|')) {
-          // Duplicate the section since lastRepeatStart, advancing the cursor so
-          // the replayed tokens get their own start times in the timeline.
           const slice = tokens.slice(lastRepeatStart);
           tokens.push({ kind: 'bar' });
           for (const t of slice) {
@@ -168,7 +264,6 @@ function parseAbc(abc: string): Parsed {
         continue;
       }
 
-      // Chord: take the first pitch only (visualizer simplification).
       if (ch === '[') {
         const close = code.indexOf(']', i);
         if (close < 0) { i++; continue; }
@@ -176,7 +271,6 @@ function parseAbc(abc: string): Parsed {
         i = close + 1;
         const lenInfo = readLength(code, i);
         i += lenInfo.consumed;
-        // pull first note letter from chord contents
         const m = inside.match(/(\^\^|__|\^|_|=)?([A-Ga-g])([,']*)/);
         if (m) {
           const acc = m[1] ?? '';
@@ -188,11 +282,9 @@ function parseAbc(abc: string): Parsed {
         continue;
       }
 
-      // Tuplet markers like (3 — skip the marker, leave notes to be parsed normally
       if (ch === '(' && /\d/.test(code[i + 1] ?? '')) { i += 2; continue; }
-      if (ch === '(' || ch === ')' || ch === '-') { i++; continue; } // ties/slurs
+      if (ch === '(' || ch === ')' || ch === '-') { i++; continue; }
 
-      // Accidentals
       let acc = '';
       if (ch === '^' || ch === '_' || ch === '=') {
         acc = ch;
@@ -223,7 +315,6 @@ function parseAbc(abc: string): Parsed {
         continue;
       }
 
-      // Anything else (decorations !..!, "..." chord symbols, etc.): skip char.
       if (ch === '!') {
         const close = code.indexOf('!', i + 1);
         i = close > 0 ? close + 1 : i + 1;
@@ -238,12 +329,11 @@ function parseAbc(abc: string): Parsed {
     }
   }
 
-  return { tokens, parsedQpm };
+  return { tokens, parsedQpm, beatsPerMeasure: meter.beatsPerMeasure, beatUnitQ: meter.beatUnitQ };
 }
 
 type PlayedToken = Exclude<Token, { kind: 'bar' }>;
 
-// Group tokens into measures separated by 'bar' tokens.
 function groupMeasures(tokens: Token[]): PlayedToken[][] {
   const measures: PlayedToken[][] = [];
   let cur: PlayedToken[] = [];
@@ -259,19 +349,80 @@ function groupMeasures(tokens: Token[]): PlayedToken[][] {
   return measures;
 }
 
-const noteColor = (pc: number, isBlack: boolean) => {
+function noteStyle(pc: number): React.CSSProperties {
   const hue = pc * 30;
-  return isBlack ? `hsl(${hue} 55% 38%)` : `hsl(${hue} 60% 55%)`;
-};
+  const black = isBlackPc(pc);
+  const sat = black ? 'var(--note-black-sat)' : 'var(--note-base-sat)';
+  const light = black ? 'var(--note-black-light)' : 'var(--note-base-light)';
+  return { background: `hsl(${hue} ${sat} ${light})` };
+}
 
-export default function NoteBlocksView({ abc, currentMs, tempo }: Props) {
+interface Display {
+  label: React.ReactNode;
+  pc: number;
+  /** Plain-text version for tooltips/aria. */
+  ariaLabel: string;
+}
+
+// Derive the chip label, pitch class (for hue), and accessible text for one
+// note, given the view mode + notation system + spelling preference.
+function deriveDisplay(
+  t: Extract<Token, { kind: 'note' }>,
+  mode: Mode,
+  transpose: number,
+  notation: Notation,
+  spelling: Spelling,
+  songKey: string,
+  saAnchor: string | undefined,
+): Display {
+  // Pitch class shown in this row, depending on which interpretation tab is active.
+  let pc: number;
+  if (mode === 'abc') pc = t.literalPc;
+  else if (mode === 'original') pc = t.originalPc;
+  else pc = ((t.originalPc + transpose) % 12 + 12) % 12;
+
+  if (notation === 'sargam') {
+    const tonicPc = tonicPcFor(mode, songKey, transpose, saAnchor);
+    const degree = ((pc - tonicPc) % 12 + 12) % 12;
+    const s = SARGAM[degree];
+    return {
+      label: <span className={`sargam ${s.mark}`}>{s.dev}</span>,
+      pc,
+      ariaLabel: `${s.roman}${s.mark === 'komal' ? ' (komal)' : s.mark === 'tivra' ? ' (tivra)' : ''}`,
+    };
+  }
+
+  // Western
+  if (mode === 'abc') {
+    return { label: t.abcLabel, pc, ariaLabel: t.abcLabel };
+  }
+  const name = westernNameForPc(pc, spelling, songKey);
+  return { label: name, pc, ariaLabel: name };
+}
+
+const TAB_LABELS: { id: Mode; label: string; hint: string }[] = [
+  { id: 'abc', label: 'ABC notes', hint: 'Letters as written in the ABC source' },
+  { id: 'original', label: 'Original notes', hint: 'Source notes with the song key signature applied' },
+  { id: 'transposed', label: 'Transposed notes', hint: 'Original notes shifted by the Sound block transpose' },
+];
+
+export default function NoteBlocksView({
+  abc, currentMs, tempo, transpose, songKey, saAnchor,
+  mode, onModeChange,
+  notation, onNotationChange,
+  spelling, onSpellingChange,
+}: Props) {
   const parsed = useMemo(() => parseAbc(abc), [abc]);
   const measures = useMemo(() => groupMeasures(parsed.tokens), [parsed.tokens]);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Convert wall-clock ms → beats in the parsed timeline. Playback runs at
-  // `tempo` qpm; the parser's beats are quarter notes, so beats-elapsed is
-  // (currentMs / 60000) * tempo.
+  // Sargam doesn't apply meaningfully to literal ABC source letters — there's
+  // no "Sa as written in source" concept. Auto-bounce the user to the
+  // Original tab if they switch to Sargam while ABC was active.
+  useEffect(() => {
+    if (notation === 'sargam' && mode === 'abc') onModeChange('original');
+  }, [notation, mode, onModeChange]);
+
   const currentBeats = (currentMs / 60000) * tempo;
 
   const activeKey = useMemo(() => {
@@ -288,78 +439,210 @@ export default function NoteBlocksView({ abc, currentMs, tempo }: Props) {
     return { mIdx, tIdx };
   }, [measures, currentBeats]);
 
-  // Auto-scroll the active block into view.
+  // Sheet-music-style follow scroll: when the active measure changes, glide
+  // the container so the active row sits one row below the top edge — leaving
+  // a row of context above and freshly revealing the rows below. We only
+  // scroll on row changes (not on every note within a row) to avoid jitter.
   useEffect(() => {
     if (activeKey.mIdx < 0) return;
-    const node = containerRef.current?.querySelector<HTMLElement>(
-      `[data-key="${activeKey.mIdx}-${activeKey.tIdx}"]`
-    );
-    if (node) node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeKey]);
+    const container = containerRef.current;
+    const row = container?.querySelector<HTMLElement>(`[data-row="${activeKey.mIdx}"]`);
+    if (!container || !row) return;
+    const rowOffset = row.offsetTop - container.offsetTop;
+    const rowH = row.offsetHeight + 4; // +gap
+    const desired = Math.max(0, rowOffset - rowH);
+    if (Math.abs(container.scrollTop - desired) > 4) {
+      container.scrollTo({ top: desired, behavior: 'smooth' });
+    }
+  }, [activeKey.mIdx]);
 
   if (parsed.tokens.length === 0) {
     return (
-      <div className="h-24 w-full rounded-md bg-slate-950 border border-slate-800 flex items-center justify-center text-xs text-slate-500">
+      <div
+        className="h-24 w-full rounded-md flex items-center justify-center text-xs"
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-subtle)',
+        }}
+      >
         No notes parsed from ABC.
       </div>
     );
   }
 
+  const transposeDisabled = transpose === 0;
+
+  // Each "beat" follows the meter's denominator, so 4/4 has 4 quarter-beats
+  // per row and 6/8 has 6 eighth-beats per row. We render one measure per row,
+  // every measure the same fixed width — bar boundaries line up vertically.
+  const PX_PER_BEAT = 64;
+  const NOTE_MIN_PX = 22;
+  const beatsPerMeasure = parsed.beatsPerMeasure;
+  const beatUnitQ = parsed.beatUnitQ;
+  const measureWidthPx = beatsPerMeasure * PX_PER_BEAT;
+
+  function pxForDurationQ(durQ: number): number {
+    const beats = durQ / beatUnitQ;
+    return Math.max(NOTE_MIN_PX, beats * PX_PER_BEAT);
+  }
+
+  // Sa anchor for the caption when sargam is active. Bansuri override (when
+  // present) wins — it pins Sa to a fixed absolute pitch.
+  const saKey = saAnchor
+    ? saAnchor
+    : mode === 'transposed'
+      ? (() => {
+          const pc = (pcOfKey(songKey) + transpose + 1200) % 12;
+          return preferFlats(songKey) && spelling !== 'sharps' ? FLAT_NAMES[pc] : SHARP_NAMES[pc];
+        })()
+      : songKey;
+
   return (
-    <div
-      ref={containerRef}
-      className="w-full max-h-48 overflow-y-auto rounded-md bg-slate-950 border border-slate-800 p-2 space-y-1"
-    >
-      {measures.map((m, mi) => (
-        <div key={mi} className="flex items-stretch gap-1 flex-wrap">
-          <span className="text-[10px] text-slate-500 self-center w-6 text-right pr-1 select-none">
-            {mi + 1}
-          </span>
-          {m.map((t, ti) => {
-            const isActive = mi === activeKey.mIdx && ti === activeKey.tIdx;
-            const dur = t.endBeats - t.startBeats;
-            // Block width scales with note duration so half-notes look longer than eighths.
-            const widthPx = Math.max(28, dur * 36);
-            if (t.kind === 'rest') {
-              return (
-                <div
-                  key={ti}
-                  data-key={`${mi}-${ti}`}
-                  className={`flex items-center justify-center rounded text-[11px] font-mono border border-dashed select-none ${
-                    isActive
-                      ? 'bg-amber-300/30 border-amber-300 text-amber-100 ring-2 ring-amber-300'
-                      : 'border-slate-700 text-slate-500 bg-slate-900/40'
-                  }`}
-                  style={{ width: widthPx, height: 28 }}
-                  title={`Rest · ${dur} beat${dur === 1 ? '' : 's'}`}
-                >
-                  —
-                </div>
-              );
-            }
-            // note
-            return (
-              <div
-                key={ti}
-                data-key={`${mi}-${ti}`}
-                className={`flex items-center justify-center rounded text-[11px] font-mono font-semibold text-slate-50 select-none ${
-                  isActive ? 'ring-2 ring-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.6)] scale-105' : ''
-                }`}
-                style={{
-                  width: widthPx,
-                  height: 28,
-                  background: noteColor(t.pitchClass, t.isBlack),
-                  borderLeft: t.isBlack ? '2px solid rgb(15 23 42)' : 'none',
-                  transition: 'transform 80ms ease, box-shadow 80ms ease',
-                }}
-                title={`${NAMES[t.pitchClass]} · ${dur} beat${dur === 1 ? '' : 's'}`}
-              >
-                {t.label}
-              </div>
-            );
-          })}
+    <div className="space-y-2">
+      <div className="flex items-center gap-1 flex-wrap">
+        {TAB_LABELS.map((t) => {
+          const isDisabledTab = (t.id === 'transposed' && transposeDisabled)
+            || (t.id === 'abc' && notation === 'sargam');
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => !isDisabledTab && onModeChange(t.id)}
+              className={`note-tab ${mode === t.id ? 'active' : ''}`}
+              disabled={isDisabledTab}
+              title={
+                isDisabledTab
+                  ? t.id === 'abc'
+                    ? 'ABC source letters have no Sargam mapping — switch Notation back to Western to view them'
+                    : `${t.hint} — set a transpose value first`
+                  : t.hint
+              }
+            >
+              {t.label}
+            </button>
+          );
+        })}
+        <span className="text-xs ml-2 tabular" style={{ color: 'var(--text-subtle)' }}>
+          {beatsPerMeasure}/{Math.round(4 / beatUnitQ)} · {beatsPerMeasure} beats per measure
+          {mode === 'transposed' && transpose !== 0 && (
+            <> · {transpose > 0 ? '+' : ''}{transpose} semitones</>
+          )}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1">
+          <span className="label" style={{ marginRight: '0.25rem' }}>Notation</span>
+          {(['western', 'sargam'] as Notation[]).map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onNotationChange(n)}
+              className={`note-tab ${notation === n ? 'active' : ''}`}
+            >
+              {n === 'western' ? 'Western' : 'Sargam'}
+            </button>
+          ))}
         </div>
-      ))}
+        {notation === 'western' && (
+          <div className="flex items-center gap-1">
+            <span className="label" style={{ marginRight: '0.25rem' }}>Spelling</span>
+            {(['auto', 'sharps', 'flats'] as Spelling[]).map((sp) => (
+              <button
+                key={sp}
+                type="button"
+                onClick={() => onSpellingChange(sp)}
+                className={`note-tab ${spelling === sp ? 'active' : ''}`}
+                disabled={mode === 'abc'}
+                title={
+                  mode === 'abc'
+                    ? 'Spelling is fixed by the ABC source on this tab'
+                    : sp === 'auto'
+                      ? `Use the spelling that matches the song key (${preferFlats(songKey) ? 'flats' : 'sharps'} for ${songKey})`
+                      : sp === 'sharps' ? 'Force sharp spelling' : 'Force flat spelling'
+                }
+              >
+                {sp === 'auto' ? 'Auto' : sp === 'sharps' ? '♯' : '♭'}
+              </button>
+            ))}
+          </div>
+        )}
+        {notation === 'sargam' && (
+          <span className="text-xs tabular" style={{ color: 'var(--text-subtle)' }}>
+            Sa = <span className="font-mono" style={{ color: 'var(--text)' }}>{saKey}</span>
+            {saAnchor
+              ? <> (bansuri)</>
+              : mode === 'transposed' && <> (transposed)</>}
+          </span>
+        )}
+      </div>
+
+      <div
+        ref={containerRef}
+        className="note-roll w-full max-h-56 overflow-y-auto space-y-1"
+      >
+        {measures.map((m, mi) => (
+          <div
+            key={mi}
+            data-row={mi}
+            className={`measure-row ${mi === activeKey.mIdx ? 'active' : ''}`}
+          >
+            <span className="measure-num tabular">{mi + 1}</span>
+            <div
+              className="measure"
+              style={{
+                width: measureWidthPx,
+                ['--beat-width' as any]: `${PX_PER_BEAT}px`,
+                ['--beats' as any]: beatsPerMeasure,
+              }}
+            >
+              {/* Beat-tick guides (one per beat past the first) so the grid is felt visually */}
+              {Array.from({ length: beatsPerMeasure - 1 }).map((_, k) => (
+                <div
+                  key={`tick-${k}`}
+                  className={`beat-tick ${(k + 1) % 2 === 0 ? 'strong' : ''}`}
+                  style={{ left: PX_PER_BEAT * (k + 1) }}
+                  aria-hidden
+                />
+              ))}
+              {m.map((t, ti) => {
+                const isActive = mi === activeKey.mIdx && ti === activeKey.tIdx;
+                const dur = t.endBeats - t.startBeats;
+                const widthPx = pxForDurationQ(dur);
+                if (t.kind === 'rest') {
+                  return (
+                    <div
+                      key={ti}
+                      data-key={`${mi}-${ti}`}
+                      className={`rest-block ${isActive ? 'active' : ''}`}
+                      style={{ width: widthPx }}
+                      title={`Rest · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}`}
+                    >
+                      —
+                    </div>
+                  );
+                }
+                const { label, pc, ariaLabel } = deriveDisplay(t, mode, transpose, notation, spelling, songKey, saAnchor);
+                return (
+                  <div
+                    key={ti}
+                    data-key={`${mi}-${ti}`}
+                    className={`note-block ${isActive ? 'active' : ''}`}
+                    style={{
+                      width: widthPx,
+                      ...noteStyle(pc),
+                    }}
+                    title={`${ariaLabel} · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}`}
+                  >
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

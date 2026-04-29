@@ -57,56 +57,53 @@ export default function SongEditor({ initial, onSave, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">{initial ? 'Edit Song' : 'New Song'}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          {initial ? 'Edit Song' : 'New Song'}
+        </h2>
 
         <Field label="Title">
           <input value={title} onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2"
-            placeholder="Twinkle, Twinkle..."/>
+            className="field" placeholder="Twinkle, Twinkle..."/>
         </Field>
 
         <Field label="Composer (optional)">
           <input value={composer} onChange={(e) => setComposer(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2"/>
+            className="field"/>
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Key / Scale">
             <input value={scale} onChange={(e) => setScale(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2"
-              placeholder="C, G, Dm, F#..."/>
+              className="field" placeholder="C, G, Dm, F#..."/>
           </Field>
           <Field label="Tempo (BPM)">
             <input type="number" min={20} max={300} value={tempo}
               onChange={(e) => setTempo(Number(e.target.value))}
-              className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2"/>
+              className="field tabular"/>
           </Field>
         </div>
 
         <Field label="ABC Notation">
           <textarea value={abc} onChange={(e) => setAbc(e.target.value)}
             rows={14}
-            className="w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 font-mono text-sm"
+            className="field font-mono text-sm"
             spellCheck={false}/>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
             Tip: <code>K:</code> sets key, <code>Q:1/4=120</code> sets tempo, lowercase = higher octave.
-            See <a className="underline" href="https://abcnotation.com/learn" target="_blank" rel="noreferrer">abcnotation.com/learn</a>.
+            See <a className="underline" style={{ color: 'var(--accent)' }} href="https://abcnotation.com/learn" target="_blank" rel="noreferrer">abcnotation.com/learn</a>.
           </p>
         </Field>
 
         <div className="flex gap-2">
-          <button type="submit" className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500">
-            Save
-          </button>
-          <button type="button" onClick={onCancel}
-            className="px-4 py-2 rounded-md bg-slate-800 hover:bg-slate-700">
-            Cancel
-          </button>
+          <button type="submit" className="btn btn-primary">Save</button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-medium text-slate-300 mb-2">Live Preview</h3>
+        <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+          Live Preview
+        </h3>
         <div ref={previewRef} className="abc-render" />
       </div>
     </form>
@@ -116,7 +113,7 @@ export default function SongEditor({ initial, onSave, onCancel }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-xs uppercase tracking-wide text-slate-400">{label}</span>
+      <span className="label uppercase tracking-wide">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

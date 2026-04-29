@@ -261,6 +261,32 @@ G2 G A | B2 c2 | B A G B | A2 G2 |
 D2 E2 | F2 G2 | A2 D2 | G4 |]`,
   },
   {
+    id: 'sample-resham-firiri',
+    title: 'Resham Firiri',
+    composer: 'Buddhi Pariyar / Trad. Nepali (1969)',
+    scale: 'C',
+    tempo: 110,
+    createdAt: Date.now(),
+    abc: `X:1
+T:Resham Firiri
+T:रेशम फिरिरी
+C:Buddhi Pariyar / Trad. Nepali (1969)
+M:4/4
+L:1/8
+Q:1/4=110
+K:C
+% "Re-sham fi-ri-ri" — phrase 1
+C D E G E D C2 |
+% "re-sham fi-ri-ri" — phrase 2
+C D E G E D C2 |
+% "u-de-ra jau-n ki"
+G A B c B A G2 |
+% "da-da ma bhan-jyang"
+G E D E D C C2 |
+% "re-sham fi-ri-ri" — closing
+C D E G E D C4 |]`,
+  },
+  {
     id: 'sample-fur-elise',
     title: 'Für Elise (theme)',
     composer: 'Ludwig van Beethoven (1810)',

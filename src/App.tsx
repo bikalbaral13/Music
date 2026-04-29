@@ -6,12 +6,20 @@ import SongEditor from './components/SongEditor';
 import Player from './components/Player';
 
 type Tab = 'library' | 'editor' | 'player';
+type Theme = 'dark' | 'light';
+
+function getInitialTheme(): Theme {
+  if (typeof document === 'undefined') return 'dark';
+  const attr = document.documentElement.getAttribute('data-theme');
+  return attr === 'light' ? 'light' : 'dark';
+}
 
 export default function App() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('library');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
     const initial = loadSongs();
@@ -22,6 +30,11 @@ export default function App() {
   useEffect(() => {
     if (songs.length > 0) saveSongs(songs);
   }, [songs]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('ml-theme', theme); } catch { /* noop */ }
+  }, [theme]);
 
   const selectedSong = useMemo(
     () => songs.find((s) => s.id === selectedId) ?? null,
@@ -78,12 +91,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-20">
+      <header
+        className="sticky top-0 z-20 backdrop-blur"
+        style={{
+          borderBottom: '1px solid var(--border)',
+          background: 'color-mix(in oklab, var(--bg) 80%, transparent)',
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
-          <h1 className="text-xl font-semibold tracking-tight">
-            🎵 <span className="text-indigo-400">Music</span> Learner
+          <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <span aria-hidden style={{ color: 'var(--accent)' }}>♪</span>
+            <span style={{ color: 'var(--accent)' }}>Music</span>
+            <span>Learner</span>
           </h1>
-          <nav className="flex gap-1 ml-auto">
+          <nav className="flex gap-1 ml-auto items-center">
             {(['library', 'editor', 'player'] as Tab[]).map((t) => (
               <button
                 key={t}
@@ -91,15 +112,24 @@ export default function App() {
                   if (t === 'editor' && !editingId) setEditingId(null);
                   setTab(t);
                 }}
-                className={`px-3 py-1.5 rounded-md text-sm capitalize transition ${
-                  tab === t
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
-                }`}
+                className={`nav-link capitalize ${tab === t ? 'active' : ''}`}
               >
                 {t}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setTheme((p) => (p === 'dark' ? 'light' : 'dark'))}
+              className="icon-btn ml-1"
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              )}
+            </button>
           </nav>
         </div>
       </header>
@@ -128,13 +158,12 @@ export default function App() {
           selectedSong ? (
             <Player song={selectedSong} />
           ) : (
-            <div className="text-center text-slate-400 py-20">
+            <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>
               No song selected. Pick one from the Library.
             </div>
           )
         )}
       </main>
-
     </div>
   );
 }

@@ -1,33 +1,300 @@
 @import "tailwindcss";
 
-/* abcjs renders SVG into a container — give it a light background so notes are readable on dark theme */
+/* =====================================================================
+   Theme tokens — IDE-style dark + clean light. All UI surfaces, borders,
+   text and accents are driven from these variables so a single
+   data-theme attribute on <html> swaps the whole app.
+   ===================================================================== */
+
+:root,
+[data-theme="dark"] {
+  --bg:             #1e1e1e;
+  --surface-1:      #252526;
+  --surface-2:      #2d2d30;
+  --surface-3:      #333337;
+  --border:         #3a3a3f;
+  --border-strong:  #4a4a50;
+  --text:           #e6e6e6;
+  --text-muted:     #9da0a4;
+  --text-subtle:    #6b6e73;
+
+  --accent:         #6366f1;   /* indigo-500 */
+  --accent-hover:   #7c7ff5;
+  --accent-fg:      #ffffff;
+
+  --danger:         #ef4444;
+  --danger-bg:      rgba(239, 68, 68, 0.12);
+
+  --ring:           rgba(99, 102, 241, 0.45);
+
+  /* Note-roll palette — muted, low-saturation pastels for the dark theme */
+  --note-base-sat:  38%;
+  --note-base-light: 48%;
+  --note-black-sat:  28%;
+  --note-black-light: 36%;
+  --note-active-glow: rgba(252, 211, 77, 0.55);
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg:             #f7f7f8;
+  --surface-1:      #ffffff;
+  --surface-2:      #f1f2f4;
+  --surface-3:      #e8eaed;
+  --border:         #e2e4e8;
+  --border-strong:  #cdd0d6;
+  --text:           #1f2328;
+  --text-muted:     #5a6068;
+  --text-subtle:    #888d94;
+
+  --accent:         #4f46e5;
+  --accent-hover:   #4338ca;
+  --accent-fg:      #ffffff;
+
+  --danger:         #dc2626;
+  --danger-bg:      rgba(220, 38, 38, 0.08);
+
+  --ring:           rgba(79, 70, 229, 0.35);
+
+  --note-base-sat:  55%;
+  --note-base-light: 62%;
+  --note-black-sat:  42%;
+  --note-black-light: 48%;
+  --note-active-glow: rgba(217, 119, 6, 0.45);
+
+  color-scheme: light;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Tabular numerals so timer/BPM don't jitter while updating */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ============================== Surfaces ============================== */
+.surface-1 {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.surface-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ============================== Buttons =============================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.btn-subtle {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-subtle:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: transparent;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+/* ============================== Fields ================================ */
+.field {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  width: 100%;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+/* Sliders — use the accent for the thumb and a neutral track */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  height: 1.25rem;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-1);
+  margin-top: -5px;
+  cursor: pointer;
+  transition: transform 100ms ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-1);
+  cursor: pointer;
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Checkbox accent follows theme */
+input[type="checkbox"] { accent-color: var(--accent); }
+
+/* Header pill nav */
+.nav-link {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.nav-link:hover { color: var(--text); background: var(--surface-2); }
+.nav-link.active {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+/* Theme toggle icon button */
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ============================== Library cards ========================== */
+.song-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.song-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.song-card.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ============================== abcjs override =========================
+   abcjs renders SVG with black ink, so we always paint it on a light
+   surface — even in dark mode — so the notation stays legible. */
 .abc-render {
   background: #f8fafc;
-  border-radius: 0.75rem;
+  border-radius: 0.6rem;
   padding: 0.75rem;
   overflow-x: auto;
+  border: 1px solid var(--border);
 }
-.abc-render svg {
-  max-width: 100%;
-  height: auto;
-}
-.abc-render .abcjs-cursor {
-  stroke: #ef4444;
-  stroke-width: 2;
-}
-.abc-render .abcjs-highlight {
-  fill: #ef4444 !important;
-}
+.abc-render svg { max-width: 100%; height: auto; }
+.abc-render .abcjs-cursor { stroke: var(--accent); stroke-width: 2; }
+.abc-render .abcjs-highlight { fill: var(--accent) !important; }
 
-/* Hide the default abcjs synth UI border */
-.abcjs-inline-audio {
-  background: transparent !important;
-  padding: 0 !important;
-}
+.abcjs-inline-audio { background: transparent !important; padding: 0 !important; }
 
-/* Uniform instrument visual area — every instrument's primary visual occupies
-   this same-sized rectangle so switching between them doesn't shift the layout.
-   Content keeps its own aspect ratio and is centered inside. */
+/* ============================== Instrument canvas ====================== */
 .instrument-canvas {
   height: 280px;
   width: 100%;
@@ -35,9 +302,9 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 0.5rem;
-  background: rgb(15 23 42 / 0.6);
-  border: 1px solid rgb(30 41 59);
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
   padding: 0.5rem;
 }
 .instrument-canvas > * {
@@ -45,6 +312,450 @@
   max-height: 100%;
   margin: 0 !important;
 }
-.instrument-canvas svg {
-  max-height: 100%;
+.instrument-canvas svg { max-height: 100%; }
+
+/* ============================== Section panels =========================
+   Player tab is split into labeled blocks (Notes / Instrument / Sound).
+   Each section has a title strip and a body so they read as discrete units. */
+.section {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.section-body { padding: 1rem; }
+
+/* Transport icon buttons (Play/Pause/Restart) — circular, accent-driven */
+.transport {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
+}
+.transport:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+.transport:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.transport:active:not(:disabled) { transform: scale(0.96); }
+.transport:disabled { opacity: 0.4; cursor: not-allowed; }
+.transport.primary {
+  width: 52px;
+  height: 52px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+}
+.transport.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* Progress (seek) slider — taller track with a colored fill */
+.progress {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.5rem;
+  background: transparent;
+}
+.progress::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--progress, 0%),
+    var(--surface-3) var(--progress, 0%),
+    var(--surface-3) 100%
+  );
+}
+.progress::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.progress::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-1);
+  margin-top: -4px;
+  cursor: pointer;
+}
+
+/* ============================== Key wheel =============================
+   A horizontal scroll-snap strip of the 12 chromatic notes. The note
+   directly under the centered chevron marker is the selected key. */
+.key-wheel {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0;
+  user-select: none;
+}
+.key-wheel-track {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 44px;
+  align-items: center;
+  scroll-behavior: smooth;
+}
+.key-wheel-track::-webkit-scrollbar { display: none; }
+.key-wheel-item {
+  flex: 0 0 56px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-subtle);
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.key-wheel-item:hover { color: var(--text); }
+.key-wheel-item.active {
+  color: var(--accent-fg);
+  background: var(--accent);
+  transform: scale(1.05);
+}
+.key-wheel-item.adjacent { color: var(--text-muted); }
+/* Fade the edges so it reads as an infinite wheel */
+.key-wheel::before,
+.key-wheel::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 48px;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 999px;
+}
+.key-wheel::before {
+  left: 1px;
+  background: linear-gradient(to right, var(--surface-2), transparent);
+}
+.key-wheel::after {
+  right: 1px;
+  background: linear-gradient(to left, var(--surface-2), transparent);
+}
+.key-wheel-marker {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--accent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ============================== Flute readout =========================
+   Big top-center label that mirrors whatever the Notes block is currently
+   displaying for the playing note. Floats over the SVG so sargam glyphs
+   (with CSS underline/overline marks) render properly. */
+.flute-readout {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1;
+  color: #1a0e04;
+  pointer-events: none;
+  user-select: none;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.flute-readout .sargam {
+  font-size: 44px;
+  font-family: 'Noto Sans Devanagari', 'Mangal', 'Sanskrit Text', serif;
+}
+.flute-readout .sargam.komal { border-bottom-width: 2.5px; padding-bottom: 2px; }
+.flute-readout .sargam.tivra { border-top-width: 2.5px; padding-top: 2px; }
+
+/* ============================== Bansuri-on-flute wheel =================
+   Wheel embedded inside the Flute SVG, encircling the embouchure. Active
+   wedge is placed at 3 o'clock so it sits next to the blow hole. */
+.bansuri-flute-wedge path {
+  fill: rgba(255, 255, 255, 0.82);
+  stroke: rgba(26, 14, 4, 0.35);
+  stroke-width: 1.2;
+  cursor: pointer;
+  transition: fill 120ms ease;
+}
+.bansuri-flute-wedge:hover path { fill: rgba(255, 255, 255, 0.98); }
+.bansuri-flute-wedge.active path {
+  fill: var(--accent);
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1.5;
+}
+/* Song-key wedge — always green so the player can see at a glance which
+   bansuri matches the tune they've selected in the Sound block. */
+.bansuri-flute-wedge.song-key path {
+  fill: #16a34a;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1.5;
+}
+.bansuri-flute-wedge.song-key text { fill: #ffffff; }
+.bansuri-flute-wedge.song-key:hover path { fill: #15803d; }
+.bansuri-flute-wedge text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 17px;
+  font-weight: 700;
+  fill: #1a0e04;
+  pointer-events: none;
+  user-select: none;
+}
+.bansuri-flute-wedge.active text { fill: var(--accent-fg); }
+
+/* ============================== Bansuri standalone wheel (unused) ====== */
+.bansuri-wheel {
+  display: inline-block;
+  outline: none;
+  user-select: none;
+}
+.bansuri-wheel:focus-visible svg { box-shadow: 0 0 0 3px var(--ring); border-radius: 50%; }
+.bansuri-wheel-wedge path {
+  fill: var(--surface-2);
+  stroke: var(--bg);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: fill 120ms ease;
+}
+.bansuri-wheel-wedge:hover path { fill: var(--surface-3); }
+.bansuri-wheel-wedge.active path {
+  fill: var(--accent);
+}
+.bansuri-wheel-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--text-muted);
+  pointer-events: none;
+}
+.bansuri-wheel-wedge.active .bansuri-wheel-label,
+.bansuri-wheel-wedge:hover .bansuri-wheel-label {
+  fill: var(--accent-fg);
+}
+.bansuri-wheel-wedge:hover:not(.active) .bansuri-wheel-label {
+  fill: var(--text);
+}
+.bansuri-wheel-center {
+  fill: var(--surface-1);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.bansuri-wheel-scale {
+  font-size: 22px;
+  font-weight: 700;
+  fill: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.bansuri-wheel-meta {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ============================== Sargam glyphs ==========================
+   Devanagari syllables with the conventional komal/tivra accidental marks:
+   underline = komal (lowered), overline = tivra (raised). Sa and Pa have
+   neither — they're immutable in the system. */
+.sargam {
+  display: inline-block;
+  font-family: 'Noto Sans Devanagari', 'Mangal', 'Sanskrit Text', serif;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 1px;
+}
+.sargam.komal {
+  border-bottom: 1.5px solid currentColor;
+  padding-bottom: 1px;
+}
+.sargam.tivra {
+  border-top: 1.5px solid currentColor;
+  padding-top: 1px;
+}
+
+/* ============================== Note-roll tabs ========================== */
+.note-tab {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.note-tab:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+.note-tab.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.note-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ============================== Note roll ============================== */
+.note-roll {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+.measure-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: background 180ms ease;
+}
+/* Soft tint on the row currently being played so the eye finds it instantly
+   even before zooming in on the highlighted note chip. */
+.measure-row.active {
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+.measure-row.active .measure-num {
+  color: var(--accent);
+  font-weight: 600;
+}
+.measure-num {
+  font-size: 10px;
+  width: 1.5rem;
+  text-align: right;
+  align-self: center;
+  user-select: none;
+  color: var(--text-subtle);
+}
+/* One row = one measure. Fixed width = beats × pxPerBeat so bar lines align
+   vertically across rows. The first beat is implicit (left edge); ticks are
+   drawn at every beat boundary after that. A right edge stroke marks the
+   end-of-measure (bar line). */
+.measure {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 28px;
+  border-left: 2px solid var(--border-strong);
+  border-right: 2px solid var(--border-strong);
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(50% - 0.5px),
+    var(--border) calc(50% - 0.5px),
+    var(--border) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  /* The faint horizontal midline is drawn behind notes for staff-like feel. */
+  background-clip: padding-box;
+}
+.beat-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+.beat-tick.strong { background: var(--border-strong); }
+.note-block {
+  height: 28px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-fg);
+  user-select: none;
+  transition: transform 80ms ease, box-shadow 80ms ease, filter 80ms ease;
+  filter: saturate(0.85);
+}
+.note-block.active {
+  filter: saturate(1.4) brightness(1.18);
+  box-shadow: 0 0 0 2.5px var(--accent), 0 0 18px 3px var(--note-active-glow);
+  transform: translateY(-1px) scale(1.08);
+  z-index: 2;
+  position: relative;
+}
+.rest-block {
+  height: 28px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-subtle);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
+}
+.rest-block.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
 }
