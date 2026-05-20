@@ -1,3 +1,5 @@
+export type SongCategory = 'Alankaars' | 'Nepali Songs' | 'Hindi Songs' | 'English Songs' | 'Bhajan' | 'Other';
+
 export interface Song {
   id: string;
   title: string;
@@ -6,6 +8,10 @@ export interface Song {
   tempo: number; // qpm (quarter notes per minute)
   abc: string;   // raw ABC notation
   createdAt: number;
+  category?: SongCategory;
+  /** If set, this song is an audio recording (base64 data URL) rather than an
+      ABC score. Player shows an audio element instead of the synth/sheet UI. */
+  audioUrl?: string;
 }
 
 export type ViewMode = 'sheet' | 'piano' | 'falling';
@@ -27,4 +33,5 @@ export const GM_INSTRUMENTS: { value: number; label: string }[] = [
   { value: 20, label: 'Harmonium' }, // GM 20 = Reed Organ — closest to harmonium timbre
   { value: 25, label: 'Ukulele' },   // GM 25 = Acoustic Guitar (steel) — closest plucked timbre to a uke
   { value: 40, label: 'Violin' },    // GM 40 = Violin
+  { value: 118, label: 'Drumset' },  // GM 118 (Synth Drum) is just an id tag — we synthesise our own kit voices
 ];

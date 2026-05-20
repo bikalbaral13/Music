@@ -52,21 +52,34 @@ export default function FallingNotesView({ notes, currentMs, showLabels }: Props
       {/* notes */}
       {visible.map((n, i) => {
         const msUntilHit = n.startMs - currentMs;
-        const bottom = -msUntilHit * PIXELS_PER_MS; // negative msUntilHit means past hit line
+        const bottom = -msUntilHit * PIXELS_PER_MS;
         const height = Math.max(8, n.durationMs * PIXELS_PER_MS);
         const left = xPercentForMidi(n.midi);
         const widthPct = (1 / whites.length) * 100 * (isBlackKey(n.midi) ? 0.7 : 0.85);
-        const past = bottom > 0; // already crossed hit line
+        const past = bottom > 0;
+        // "Bright light" — the note glows hottest as it crosses the hit line,
+        // fades to a dim trail once it has passed.
+        const endMs = n.startMs + n.durationMs;
+        const sounding = currentMs >= n.startMs && currentMs <= endMs;
+        const approachT = Math.max(0, Math.min(1, 1 - Math.min(800, Math.abs(msUntilHit)) / 800));
+        const glowAlpha = sounding ? 0.95 : approachT * 0.65;
         return (
           <div key={`${i}-${n.midi}-${n.startMs}`}
             className={`absolute rounded-sm border ${
-              past ? 'bg-indigo-700/40 border-indigo-700/40' : 'bg-indigo-500 border-indigo-300'
+              past && !sounding
+                ? 'bg-indigo-700/30 border-indigo-700/30'
+                : sounding
+                ? 'bg-amber-300 border-amber-100'
+                : 'bg-indigo-400 border-indigo-200'
             }`}
             style={{
               left: `calc(${left}% - ${widthPct / 2}%)`,
               width: `${widthPct}%`,
               bottom: `${bottom}px`,
               height: `${height}px`,
+              boxShadow: glowAlpha > 0
+                ? `0 0 ${sounding ? 18 : 10}px ${sounding ? 6 : 3}px rgba(${sounding ? '253,224,71' : '129,140,248'},${glowAlpha})`
+                : 'none',
             }}>
             {showLabels && (
               <span className="absolute inset-x-0 -top-4 text-[9px] text-slate-400 text-center">

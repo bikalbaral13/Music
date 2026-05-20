@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type Mode,
   type Notation,
@@ -11,6 +11,8 @@ import {
   westernNameForPc,
   tonicPcFor,
 } from '../lib/notation';
+import KeySelect from './KeySelect';
+import { transposeKey } from '../lib/midi';
 
 interface Props {
   abc: string;
@@ -36,6 +38,15 @@ interface Props {
   onNotationChange: (n: Notation) => void;
   spelling: Spelling;
   onSpellingChange: (s: Spelling) => void;
+  /** Seek the player to this many ms. Used for tap-to-seek on note blocks. */
+  onSeekMs?: (ms: number) => void;
+  // Performance controls (used to live in the Sound block).
+  onTempoChange: (tempo: number) => void;
+  onTransposeChange: (semitones: number) => void;
+  /** Voices declared in the ABC source — for the per-voice mute toggles. */
+  voices: { idx: number; id: string; label: string; program: number | null }[];
+  mutedVoices: Set<number>;
+  onToggleVoice: (idx: number) => void;
 }
 
 type Token =
@@ -52,6 +63,10 @@ type Token =
       originalLabel: string;
       startBeats: number;
       endBeats: number;
+      /** Lyric syllable from a following `w:` line, if any. */
+      lyric?: string;
+      /** Chord symbol from a `"…"` annotation that preceded this note. */
+      chord?: string;
     }
   | { kind: 'rest'; startBeats: number; endBeats: number };
 
@@ -142,6 +157,36 @@ function parseAbc(abc: string): Parsed {
 
   const tokens: Token[] = [];
   let lastRepeatStart = 0;
+  let currentLineNotes: number[] = [];
+  let pendingChord: string | null = null;
+  // Multi-voice ABCs only display the melody (V:1) in the Notes block;
+  // additional voices still play through abcjs.synth via per-voice MIDI
+  // program declarations, but parsing them here would scramble the timeline.
+  let currentVoice = '1';
+
+  function assignLyrics(wLine: string) {
+    // Tokenize lyrics on whitespace; within each token, hyphens split syllables.
+    // `*` = skip a note (no lyric); `_` = melisma continuation; `|` = bar align.
+    const out: (string | null)[] = [];
+    const rawTokens = wLine.trim().split(/\s+/).filter(Boolean);
+    for (const tok of rawTokens) {
+      if (tok === '|') continue;
+      if (tok === '*') { out.push(null); continue; }
+      if (tok === '_') { out.push(null); continue; }
+      const trailing = tok.endsWith('-');
+      const core = trailing ? tok.slice(0, -1) : tok;
+      const parts = core.split('-').filter((p) => p.length > 0);
+      parts.forEach((p, i) => {
+        const isLast = i === parts.length - 1;
+        out.push(p + ((!isLast || trailing) ? '‑' : ''));
+      });
+    }
+    for (let i = 0; i < currentLineNotes.length && i < out.length; i++) {
+      const tIdx = currentLineNotes[i];
+      const tok = tokens[tIdx];
+      if (tok?.kind === 'note' && out[i]) tok.lyric = out[i] as string;
+    }
+  }
 
   function pushNote(letter: string, _octShift: number, lenMul: number, acc: string) {
     const upper = letter.toUpperCase();
@@ -184,7 +229,10 @@ function parseAbc(abc: string): Parsed {
       originalLabel: SHARP_NAMES[originalPc],
       startBeats,
       endBeats: cursor,
+      chord: pendingChord ?? undefined,
     });
+    pendingChord = null;
+    currentLineNotes.push(tokens.length - 1);
   }
 
   function pushRest(lenMul: number) {
@@ -220,6 +268,30 @@ function parseAbc(abc: string): Parsed {
       continue;
     }
     if (!inBody) continue;
+
+    // Lyric line — attach syllables to notes emitted by the previous music line.
+    if (/^w:/.test(trimmed)) {
+      assignLyrics(trimmed.slice(2));
+      continue;
+    }
+
+    // Voice declaration. Update the current voice; only V:1 contributes notes
+    // to the rendered note grid (others still play via abcjs synth).
+    if (/^V:/.test(trimmed)) {
+      const m = trimmed.match(/^V:\s*(\S+)/);
+      currentVoice = m ? m[1] : '1';
+      pendingChord = null;
+      currentLineNotes = [];
+      continue;
+    }
+
+    // Inline directives (instrument programs, stylesheet hints) — never music.
+    if (/^%%/.test(trimmed) || /^I:/.test(trimmed)) continue;
+
+    if (currentVoice !== '1') continue;
+
+    // Any other music body line resets the lyric-target buffer.
+    currentLineNotes = [];
 
     const code = trimmed.split('%')[0];
     let i = 0;
@@ -322,7 +394,17 @@ function parseAbc(abc: string): Parsed {
       }
       if (ch === '"') {
         const close = code.indexOf('"', i + 1);
-        i = close > 0 ? close + 1 : i + 1;
+        if (close > 0) {
+          const inside = code.slice(i + 1, close);
+          // ABC reserves leading ^_<>@ for non-chord typesetting annotations;
+          // anything else is treated as a chord symbol.
+          if (!/^[\^_<>@]/.test(inside)) {
+            pendingChord = inside.trim();
+          }
+          i = close + 1;
+        } else {
+          i++;
+        }
         continue;
       }
       i++;
@@ -411,10 +493,29 @@ export default function NoteBlocksView({
   mode, onModeChange,
   notation, onNotationChange,
   spelling, onSpellingChange,
+  onSeekMs,
+  onTempoChange,
+  onTransposeChange,
+  voices,
+  mutedVoices,
+  onToggleVoice,
 }: Props) {
   const parsed = useMemo(() => parseAbc(abc), [abc]);
   const measures = useMemo(() => groupMeasures(parsed.tokens), [parsed.tokens]);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const hasAnyLyric = useMemo(
+    () => parsed.tokens.some((t) => t.kind === 'note' && !!t.lyric),
+    [parsed.tokens]
+  );
+  const hasAnyChord = useMemo(
+    () => parsed.tokens.some((t) => t.kind === 'note' && !!t.chord),
+    [parsed.tokens]
+  );
+
+  const [showNotes, setShowNotes] = useState(true);
+  const [showChords, setShowChords] = useState(true);
+  const [showLyrics, setShowLyrics] = useState(true);
 
   // Sargam doesn't apply meaningfully to literal ABC source letters — there's
   // no "Sa as written in source" concept. Auto-bounce the user to the
@@ -487,6 +588,10 @@ export default function NoteBlocksView({
     return Math.max(NOTE_MIN_PX, beats * PX_PER_BEAT);
   }
 
+  function msForBeats(beatsQ: number): number {
+    return tempo > 0 ? (beatsQ / tempo) * 60000 : 0;
+  }
+
   // Sa anchor for the caption when sargam is active. Bansuri override (when
   // present) wins — it pins Sa to a fixed absolute pitch.
   const saKey = saAnchor
@@ -500,40 +605,35 @@ export default function NoteBlocksView({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1 flex-wrap">
-        {TAB_LABELS.map((t) => {
-          const isDisabledTab = (t.id === 'transposed' && transposeDisabled)
-            || (t.id === 'abc' && notation === 'sargam');
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => !isDisabledTab && onModeChange(t.id)}
-              className={`note-tab ${mode === t.id ? 'active' : ''}`}
-              disabled={isDisabledTab}
-              title={
-                isDisabledTab
-                  ? t.id === 'abc'
-                    ? 'ABC source letters have no Sargam mapping — switch Notation back to Western to view them'
-                    : `${t.hint} — set a transpose value first`
-                  : t.hint
-              }
-            >
-              {t.label}
-            </button>
-          );
-        })}
-        <span className="text-xs ml-2 tabular" style={{ color: 'var(--text-subtle)' }}>
-          {beatsPerMeasure}/{Math.round(4 / beatUnitQ)} · {beatsPerMeasure} beats per measure
-          {mode === 'transposed' && transpose !== 0 && (
-            <> · {transpose > 0 ? '+' : ''}{transpose} semitones</>
-          )}
-        </span>
-      </div>
+      <div className="notes-toolbar">
+        <div className="notes-toolbar-group" role="group" aria-label="View mode">
+          {TAB_LABELS.map((t) => {
+            const isDisabledTab = (t.id === 'transposed' && transposeDisabled)
+              || (t.id === 'abc' && notation === 'sargam');
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => !isDisabledTab && onModeChange(t.id)}
+                className={`note-tab ${mode === t.id ? 'active' : ''}`}
+                disabled={isDisabledTab}
+                title={
+                  isDisabledTab
+                    ? t.id === 'abc'
+                      ? 'ABC source letters have no Sargam mapping — switch Notation back to Western to view them'
+                      : `${t.hint} — set a transpose value first`
+                    : t.hint
+                }
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1">
-          <span className="label" style={{ marginRight: '0.25rem' }}>Notation</span>
+        <span className="notes-toolbar-sep" aria-hidden />
+
+        <div className="notes-toolbar-group" role="group" aria-label="Notation">
           {(['western', 'sargam'] as Notation[]).map((n) => (
             <button
               key={n}
@@ -545,48 +645,144 @@ export default function NoteBlocksView({
             </button>
           ))}
         </div>
+
         {notation === 'western' && (
-          <div className="flex items-center gap-1">
-            <span className="label" style={{ marginRight: '0.25rem' }}>Spelling</span>
-            {(['auto', 'sharps', 'flats'] as Spelling[]).map((sp) => (
+          <>
+            <span className="notes-toolbar-sep" aria-hidden />
+            <div className="notes-toolbar-group" role="group" aria-label="Spelling">
+              {(['auto', 'sharps', 'flats'] as Spelling[]).map((sp) => (
+                <button
+                  key={sp}
+                  type="button"
+                  onClick={() => onSpellingChange(sp)}
+                  className={`note-tab ${spelling === sp ? 'active' : ''}`}
+                  disabled={mode === 'abc'}
+                  title={
+                    mode === 'abc'
+                      ? 'Spelling is fixed by the ABC source on this tab'
+                      : sp === 'auto'
+                        ? `Use the spelling that matches the song key (${preferFlats(songKey) ? 'flats' : 'sharps'} for ${songKey})`
+                        : sp === 'sharps' ? 'Force sharp spelling' : 'Force flat spelling'
+                  }
+                >
+                  {sp === 'auto' ? 'Auto' : sp === 'sharps' ? '♯' : '♭'}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <span className="notes-toolbar-sep" aria-hidden />
+
+        <div className="notes-toolbar-group" role="group" aria-label="Show layers">
+          <span className="label" style={{ marginRight: '0.25rem' }}>Show</span>
+          <label className="show-toggle">
+            <input type="checkbox" checked={showNotes} onChange={(e) => setShowNotes(e.target.checked)} />
+            Notes
+          </label>
+          <label className={`show-toggle ${!hasAnyChord ? 'is-disabled' : ''}`} title={hasAnyChord ? undefined : 'No chord symbols in this song'}>
+            <input type="checkbox" checked={showChords && hasAnyChord} onChange={(e) => setShowChords(e.target.checked)} disabled={!hasAnyChord} />
+            Chords
+          </label>
+          <label className={`show-toggle ${!hasAnyLyric ? 'is-disabled' : ''}`} title={hasAnyLyric ? undefined : 'No lyrics in this song'}>
+            <input type="checkbox" checked={showLyrics && hasAnyLyric} onChange={(e) => setShowLyrics(e.target.checked)} disabled={!hasAnyLyric} />
+            Lyrics
+          </label>
+        </div>
+
+        <span className="notes-toolbar-caption tabular">
+          {beatsPerMeasure}/{Math.round(4 / beatUnitQ)}
+          {mode === 'transposed' && transpose !== 0 && (
+            <> · {transpose > 0 ? '+' : ''}{transpose} semitones</>
+          )}
+          {notation === 'sargam' && (
+            <> · Sa = <span className="font-mono" style={{ color: 'var(--text)' }}>{saKey}</span>
+              {saAnchor ? <> (bansuri)</> : mode === 'transposed' && <> (transposed)</>}
+            </>
+          )}
+        </span>
+      </div>
+
+      {voices.length > 0 && (
+        <div className="notes-voices-row" role="group" aria-label="Instruments in this song">
+          <span className="label" style={{ marginRight: '0.25rem' }}>Instruments</span>
+          {voices.map((v) => {
+            const muted = mutedVoices.has(v.idx);
+            return (
               <button
-                key={sp}
+                key={v.idx}
                 type="button"
-                onClick={() => onSpellingChange(sp)}
-                className={`note-tab ${spelling === sp ? 'active' : ''}`}
-                disabled={mode === 'abc'}
-                title={
-                  mode === 'abc'
-                    ? 'Spelling is fixed by the ABC source on this tab'
-                    : sp === 'auto'
-                      ? `Use the spelling that matches the song key (${preferFlats(songKey) ? 'flats' : 'sharps'} for ${songKey})`
-                      : sp === 'sharps' ? 'Force sharp spelling' : 'Force flat spelling'
-                }
+                onClick={() => onToggleVoice(v.idx)}
+                className={`voice-chip ${muted ? 'muted' : 'active'}`}
+                title={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
+                aria-pressed={!muted}
               >
-                {sp === 'auto' ? 'Auto' : sp === 'sharps' ? '♯' : '♭'}
+                <span className="voice-chip-dot" aria-hidden />
+                {v.label}
               </button>
-            ))}
-          </div>
-        )}
-        {notation === 'sargam' && (
-          <span className="text-xs tabular" style={{ color: 'var(--text-subtle)' }}>
-            Sa = <span className="font-mono" style={{ color: 'var(--text)' }}>{saKey}</span>
-            {saAnchor
-              ? <> (bansuri)</>
-              : mode === 'transposed' && <> (transposed)</>}
-          </span>
-        )}
+            );
+          })}
+          {mutedVoices.size > 0 && (
+            <button
+              type="button"
+              className="link-btn text-xs"
+              onClick={() => mutedVoices.forEach((i) => onToggleVoice(i))}
+              title="Unmute all instruments"
+            >
+              All on
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="notes-perf-row">
+        <div className="notes-perf-item">
+          <label className="label tabular" htmlFor="song-tempo">Tempo: {tempo} BPM</label>
+          <input
+            id="song-tempo"
+            type="range"
+            min={40}
+            max={240}
+            value={tempo}
+            onChange={(e) => onTempoChange(Number(e.target.value))}
+          />
+        </div>
+
+        <div className="notes-perf-item">
+          <label className="label tabular">
+            Key: <span style={{ color: 'var(--text)' }}>{transposeKey(songKey, transpose)}</span>
+            {transpose !== 0 && (
+              <span style={{ color: 'var(--text-subtle)' }}>
+                {' '}({transpose > 0 ? '+' : ''}{transpose} st)
+              </span>
+            )}
+            <span style={{ color: 'var(--text-subtle)' }}> · Original: {songKey}</span>
+          </label>
+          <KeySelect
+            originalScale={songKey}
+            transpose={transpose}
+            onChange={onTransposeChange}
+          />
+        </div>
       </div>
 
       <div
         ref={containerRef}
-        className="note-roll w-full max-h-56 overflow-y-auto space-y-1"
+        className="note-roll w-full overflow-y-auto space-y-1"
       >
-        {measures.map((m, mi) => (
+        {(() => {
+          let prevChord: string | null = null;
+          return measures.map((m, mi) => {
+          const measureStart = m[0]?.startBeats ?? 0;
+          const isActiveRow = mi === activeKey.mIdx;
+          const playheadPx = isActiveRow
+            ? Math.max(0, ((currentBeats - measureStart) / beatUnitQ) * PX_PER_BEAT)
+            : null;
+          return (
           <div
             key={mi}
             data-row={mi}
-            className={`measure-row ${mi === activeKey.mIdx ? 'active' : ''}`}
+            className={`measure-row ${isActiveRow ? 'active' : ''}`}
           >
             <span className="measure-num tabular">{mi + 1}</span>
             <div
@@ -597,7 +793,6 @@ export default function NoteBlocksView({
                 ['--beats' as any]: beatsPerMeasure,
               }}
             >
-              {/* Beat-tick guides (one per beat past the first) so the grid is felt visually */}
               {Array.from({ length: beatsPerMeasure - 1 }).map((_, k) => (
                 <div
                   key={`tick-${k}`}
@@ -606,42 +801,88 @@ export default function NoteBlocksView({
                   aria-hidden
                 />
               ))}
+              {mi === 0 && Array.from({ length: beatsPerMeasure }).map((_, k) => (
+                <div
+                  key={`beat-num-${k}`}
+                  className={`beat-num ${k === 0 ? 'downbeat' : ''}`}
+                  style={{ left: PX_PER_BEAT * k }}
+                  aria-hidden
+                >
+                  {k + 1}
+                </div>
+              ))}
+              {Array.from({ length: beatsPerMeasure }).map((_, k) => (
+                <div
+                  key={`beat-bg-${k}`}
+                  className={`beat-bg ${k === 0 ? 'downbeat' : ''}`}
+                  style={{ left: PX_PER_BEAT * k, width: PX_PER_BEAT }}
+                  aria-hidden
+                />
+              ))}
+              {playheadPx !== null && (
+                <div
+                  className="playhead"
+                  style={{ left: playheadPx }}
+                  aria-hidden
+                />
+              )}
               {m.map((t, ti) => {
                 const isActive = mi === activeKey.mIdx && ti === activeKey.tIdx;
                 const dur = t.endBeats - t.startBeats;
                 const widthPx = pxForDurationQ(dur);
+                const clickable = !!onSeekMs;
+                const onClick = clickable
+                  ? () => onSeekMs!(msForBeats(t.startBeats))
+                  : undefined;
                 if (t.kind === 'rest') {
                   return (
                     <div
                       key={ti}
                       data-key={`${mi}-${ti}`}
-                      className={`rest-block ${isActive ? 'active' : ''}`}
+                      className={`rest-block ${isActive ? 'active' : ''} ${clickable ? 'seekable' : ''}`}
                       style={{ width: widthPx }}
-                      title={`Rest · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}`}
+                      title={`Rest · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}${clickable ? ' · click to seek' : ''}`}
+                      onClick={onClick}
+                      role={clickable ? 'button' : undefined}
                     >
                       —
                     </div>
                   );
                 }
                 const { label, pc, ariaLabel } = deriveDisplay(t, mode, transpose, notation, spelling, songKey, saAnchor);
+                const chordShown = showChords && hasAnyChord && !!t.chord && t.chord !== prevChord;
+                if (t.chord) prevChord = t.chord;
+                const lyricShown = showLyrics && hasAnyLyric && !!t.lyric;
+                const reserveChordRow = showChords && hasAnyChord;
+                const reserveLyricRow = showLyrics && hasAnyLyric;
                 return (
                   <div
                     key={ti}
                     data-key={`${mi}-${ti}`}
-                    className={`note-block ${isActive ? 'active' : ''}`}
+                    className={`note-block ${isActive ? 'active' : ''} ${clickable ? 'seekable' : ''} ${reserveChordRow ? 'has-chord-row' : ''} ${reserveLyricRow ? 'has-lyric-row' : ''}`}
                     style={{
                       width: widthPx,
                       ...noteStyle(pc),
                     }}
-                    title={`${ariaLabel} · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}`}
+                    title={`${ariaLabel}${t.chord ? ` · chord ${t.chord}` : ''}${t.lyric ? ` · ${t.lyric.replace(/‑/g, '')}` : ''} · ${(dur / beatUnitQ).toFixed(2)} beat${dur === beatUnitQ ? '' : 's'}${clickable ? ' · click to seek' : ''}`}
+                    onClick={onClick}
+                    role={clickable ? 'button' : undefined}
                   >
-                    {label}
+                    {reserveChordRow && (
+                      <span className="note-chord">{chordShown ? t.chord : ''}</span>
+                    )}
+                    {showNotes && <span className="note-name">{label}</span>}
+                    {reserveLyricRow && (
+                      <span className="note-lyric">{lyricShown ? t.lyric : ''}</span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-        ))}
+          );
+        });
+        })()}
       </div>
     </div>
   );

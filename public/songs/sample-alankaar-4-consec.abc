@@ -1,0 +1,10 @@
+X:1
+T:Alankaar 4 — Quadruples (Consecutive)
+C:Exercise
+M:none
+L:1/4
+Q:1/4=90
+K:C
+% Each group: four consecutive scale degrees, group start steps up by one.
+CDEF | DEFG | EFGA | FGAB | GABc | ABcd | Bcde |
+edcB | dcBA | cBAG | BAGF | AGFE | GFED | FEDC |

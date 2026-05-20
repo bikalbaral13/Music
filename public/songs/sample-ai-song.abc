@@ -1,0 +1,109 @@
+X:1
+T:AI-Generated Song
+C:AI (Music Learner)
+M:4/4
+L:1/8
+Q:1/4=100
+K:D
+%
+% A happy, romantic, uplifting piece in the spirit of Nepali folk —
+% D major (Bilawal), 4/4 (suggests a Kaherva groove), bansuri-led melody
+% with violin counter-melody, piano arpeggiated chords, and a light
+% ukulele "chiki" backbeat for sparkle. Pair it with the Madal drum
+% pattern in the Drum view for the full feel.
+%
+V:1 name="Bansuri (Flute)"
+%%MIDI program 73
+% — INTRO — bansuri sets the mood
+"D" D2 E2 F2 A2 | "D" A2 G2 F2 E2 | "G" G2 A2 B2 d2 | "A" c2 B2 A2 z2 |
+% — VERSE — gentle, romantic
+"D" F2 A2 d2 F2 | "D" A4 F2 E2 | "Bm" D2 F2 A2 d2 | "Bm" B2 A2 F2 E2 |
+"G" G2 B2 d2 B2 | "G" A2 G2 F2 E2 | "A" E2 F2 G2 A2 | "D" D8 |
+% — CHORUS — lift, all instruments
+"D" d2 c2 d2 A2 | "G" B2 A2 G2 F2 | "A" e2 d2 c2 B2 | "D" d4 A2 d2 |
+"Bm" b2 a2 f2 d2 | "G" B2 d2 g2 d2 | "A" e2 c2 A2 B2 | "D" d6 z2 |
+% — BRIDGE — flute breathes
+"Bm" F2 A2 d2 c2 | "G" B2 d2 B2 G2 | "A" A2 c2 e2 A2 | "A" A4 z4 |
+% — FINAL CHORUS — joyful, high register
+"D" d2 c2 d2 a2 | "G" b2 a2 g2 f2 | "A" e2 d2 c2 B2 | "D" d4 a2 d2 |
+"G" b2 a2 g2 f2 | "A" e2 c2 "D" d2 d2 |
+% — OUTRO
+"D" A2 F2 D2 z2 | "D" D8 |]
+%
+V:2 name="Piano"
+%%MIDI program 0
+% Intro — piano enters bar 3
+z8 | z8 | [G,B,D]4 [G,B,D]4 | [A,CE]4 [A,CE]4 |
+% Verse — half-note chord pads
+[D,F,A,]4 [D,F,A,]4 | [D,F,A,]4 [D,F,A,]4 |
+[B,,D,F,]4 [B,,D,F,]4 | [B,,D,F,]4 [B,,D,F,]4 |
+[G,,B,,D,]4 [G,,B,,D,]4 | [G,,B,,D,]4 [G,,B,,D,]4 |
+[A,,C,E,]4 [A,,C,E,]4 | [D,F,A,]4 [D,F,A,]4 |
+% Chorus — quarter-note stabs (4 hits/bar)
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[B,,D,F,]2 [B,,D,F,]2 [B,,D,F,]2 [B,,D,F,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+% Bridge — sparse
+z8 | [G,,B,,D,]4 z4 | [A,,C,E,]4 z4 | [A,,C,E,]4 [A,,C,E,]4 |
+% Final Chorus — full
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [D,F,A,]2 [D,F,A,]2 |
+% Outro
+[D,F,A,]8 | [D,F,A,]8 |]
+%
+V:3 name="Violin"
+%%MIDI program 40
+% Intro — violin pedal enters last bar
+z8 | z8 | z8 | A,4 c4 |
+% Verse — slow harmonic motion in 3rds/5ths beneath the bansuri
+A,4 D4 | F4 A4 | B,4 D4 | F4 A4 |
+G,4 B,4 | D4 G4 | A,4 C4 | A,8 |
+% Chorus — countermelody a 3rd below the flute
+B2 A2 B2 F2 | G2 F2 E2 D2 | c2 B2 A2 G2 | B4 F2 B2 |
+g2 f2 d2 B2 | G2 B2 e2 B2 | c2 A2 F2 G2 | B8 |
+% Bridge — long sustained pedal
+B,4 D4 | G,4 D4 | A,4 C4 | E,8 |
+% Final Chorus — same countermelody, lifted up an octave at the top
+B2 A2 B2 f2 | g2 f2 e2 d2 | c2 B2 A2 G2 | B4 F2 B2 |
+g2 f2 e2 d2 | c2 A2 F2 G2 |
+% Outro
+F2 D2 B,2 z2 | D8 |]
+%
+V:4 name="Ukulele"
+%%MIDI program 25
+% Intro — ukulele silent (let bansuri shine alone)
+z8 | z8 | z8 | z8 |
+% Verse — "chiki" on 2 and 4 (off-beat folk feel)
+z2 [D,F,A,]2 z2 [D,F,A,]2 | z2 [D,F,A,]2 z2 [D,F,A,]2 |
+z2 [B,,D,F,]2 z2 [B,,D,F,]2 | z2 [B,,D,F,]2 z2 [B,,D,F,]2 |
+z2 [G,,B,,D,]2 z2 [G,,B,,D,]2 | z2 [G,,B,,D,]2 z2 [G,,B,,D,]2 |
+z2 [A,,C,E,]2 z2 [A,,C,E,]2 | z2 [D,F,A,]2 z2 [D,F,A,]2 |
+% Chorus — all four beats, full strum
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[B,,D,F,]2 [B,,D,F,]2 [B,,D,F,]2 [B,,D,F,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+% Bridge — silent so flute + violin sit alone
+z8 | z8 | z8 | z8 |
+% Final Chorus — full strum again
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 [A,,C,E,]2 |
+[D,F,A,]2 [D,F,A,]2 [D,F,A,]2 [D,F,A,]2 |
+[G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 [G,,B,,D,]2 |
+[A,,C,E,]2 [A,,C,E,]2 [D,F,A,]2 [D,F,A,]2 |
+% Outro
+[D,F,A,]4 [D,F,A,]4 | [D,F,A,]8 |]

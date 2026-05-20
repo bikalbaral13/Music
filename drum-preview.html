@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Drum kit SVG preview</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      background: #1c1c1c;
+      color: #cfcfcf;
+      font-family: -apple-system, system-ui, sans-serif;
+    }
+    h1 { font-size: 14px; font-weight: 500; color: #888; margin: 0; }
+    .stage {
+      background: radial-gradient(ellipse at center bottom, #2a2a2a 0%, #1c1c1c 70%);
+      padding: 24px 36px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    svg { display: block; max-width: 90vw; height: auto; }
+  </style>
+</head>
+<body>
+  <h1>Drum kit — static preview (no playback wiring yet)</h1>
+  <div class="stage">
+    <svg viewBox="0 0 620 400" width="620" height="400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Walnut wood gradient for shells -->
+        <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0"   stop-color="#a26e35"/>
+          <stop offset="0.45" stop-color="#7d4d22"/>
+          <stop offset="1"   stop-color="#3f2410"/>
+        </linearGradient>
+        <linearGradient id="woodFloor" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0"   stop-color="#9c6730"/>
+          <stop offset="0.5" stop-color="#73471f"/>
+          <stop offset="1"   stop-color="#3a2110"/>
+        </linearGradient>
+
+        <!-- Drum head: subtle dome shading -->
+        <radialGradient id="head" cx="0.4" cy="0.35" r="0.7">
+          <stop offset="0"   stop-color="#fefaf0"/>
+          <stop offset="0.55" stop-color="#ece2c8"/>
+          <stop offset="1"   stop-color="#9b8a64"/>
+        </radialGradient>
+        <radialGradient id="kickHead" cx="0.42" cy="0.38" r="0.68">
+          <stop offset="0"   stop-color="#fff8e8"/>
+          <stop offset="0.55" stop-color="#e9dcb5"/>
+          <stop offset="1"   stop-color="#7a6230"/>
+        </radialGradient>
+
+        <!-- Snare metal shell -->
+        <linearGradient id="snareShell" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="#dadada"/>
+          <stop offset="0.5" stop-color="#9a9a9a"/>
+          <stop offset="1"   stop-color="#5e5e5e"/>
+        </linearGradient>
+
+        <!-- Brass cymbal -->
+        <radialGradient id="cymbal" cx="0.35" cy="0.4" r="0.75">
+          <stop offset="0"   stop-color="#f8e07b"/>
+          <stop offset="0.45" stop-color="#d4a017"/>
+          <stop offset="1"   stop-color="#7d5c0f"/>
+        </radialGradient>
+
+        <!-- Soft floor shadow -->
+        <radialGradient id="stageShadow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#000" stop-opacity="0.45"/>
+          <stop offset="1" stop-color="#000" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Floor shadow -->
+      <ellipse cx="310" cy="370" rx="290" ry="22" fill="url(#stageShadow)"/>
+
+      <!-- ===================== Hardware (stands) — drawn first so drums sit on top ===================== -->
+      <g stroke="#2a2a2a" stroke-width="2.6" stroke-linecap="round">
+        <!-- Hi-hat stand -->
+        <line x1="92"  y1="220" x2="92"  y2="370"/>
+        <!-- Crash stand -->
+        <line x1="55"  y1="135" x2="78"  y2="370"/>
+        <!-- Ride stand -->
+        <line x1="540" y1="155" x2="500" y2="370"/>
+        <!-- Snare stand (tripod) -->
+        <line x1="155" y1="285" x2="120" y2="370"/>
+        <line x1="155" y1="285" x2="195" y2="370"/>
+        <line x1="155" y1="285" x2="155" y2="370"/>
+      </g>
+
+      <!-- ===================== Floor tom (right of kick) ===================== -->
+      <g>
+        <!-- Legs -->
+        <line x1="425" y1="270" x2="412" y2="370" stroke="#2a2a2a" stroke-width="2.4"/>
+        <line x1="495" y1="270" x2="508" y2="370" stroke="#2a2a2a" stroke-width="2.4"/>
+        <!-- Shell -->
+        <rect x="420" y="200" width="82" height="105" fill="url(#woodFloor)" stroke="#2a1608" stroke-width="1.5" rx="3"/>
+        <!-- Bottom rim -->
+        <ellipse cx="461" cy="305" rx="41" ry="8" fill="#3a1e0c"/>
+        <!-- Top head -->
+        <ellipse cx="461" cy="200" rx="41" ry="11" fill="url(#head)"/>
+        <ellipse cx="461" cy="200" rx="41" ry="11" fill="none" stroke="#3a1e0c" stroke-width="3.2"/>
+        <!-- Lugs -->
+        <g fill="#1a0d05">
+          <circle cx="424" cy="225" r="2.6"/><circle cx="498" cy="225" r="2.6"/>
+          <circle cx="424" cy="260" r="2.6"/><circle cx="498" cy="260" r="2.6"/>
+          <circle cx="424" cy="290" r="2.6"/><circle cx="498" cy="290" r="2.6"/>
+        </g>
+      </g>
+
+      <!-- ===================== Kick drum (center, big) ===================== -->
+      <g>
+        <!-- Outer rim/shell ring -->
+        <circle cx="310" cy="265" r="112" fill="#3a2310"/>
+        <!-- Hoop highlight -->
+        <circle cx="310" cy="265" r="108" fill="none" stroke="#62381b" stroke-width="2"/>
+        <!-- Head -->
+        <circle cx="310" cy="265" r="104" fill="url(#kickHead)"/>
+        <!-- Lugs around rim (10) -->
+        <g fill="#1a0d05">
+          <circle cx="310" cy="155" r="3.2"/>
+          <circle cx="376" cy="174" r="3.2"/>
+          <circle cx="416" cy="226" r="3.2"/>
+          <circle cx="416" cy="304" r="3.2"/>
+          <circle cx="376" cy="356" r="3.2"/>
+          <circle cx="310" cy="375" r="3.2"/>
+          <circle cx="244" cy="356" r="3.2"/>
+          <circle cx="204" cy="304" r="3.2"/>
+          <circle cx="204" cy="226" r="3.2"/>
+          <circle cx="244" cy="174" r="3.2"/>
+        </g>
+        <!-- Brand badge -->
+        <rect x="290" y="256" width="40" height="22" rx="3" fill="#1a0d05" stroke="#5a3a18" stroke-width="0.8"/>
+        <text x="310" y="271" text-anchor="middle" font-size="9" font-family="Georgia, serif" fill="#d4a017" font-weight="700">KICK</text>
+        <!-- Beater dot -->
+        <circle cx="310" cy="265" r="3" fill="#5a3a18" opacity="0.4"/>
+      </g>
+
+      <!-- ===================== Toms (mounted on top of kick) ===================== -->
+      <!-- Tom 1 (left) -->
+      <g>
+        <!-- Mount arm -->
+        <line x1="248" y1="178" x2="280" y2="160" stroke="#2a2a2a" stroke-width="2"/>
+        <!-- Bottom rim peek -->
+        <ellipse cx="248" cy="225" rx="38" ry="9" fill="#3a1e0c"/>
+        <!-- Shell -->
+        <rect x="210" y="170" width="76" height="58" fill="url(#wood)" stroke="#2a1608" stroke-width="1.4"/>
+        <!-- Top head -->
+        <ellipse cx="248" cy="170" rx="38" ry="10" fill="url(#head)"/>
+        <ellipse cx="248" cy="170" rx="38" ry="10" fill="none" stroke="#3a1e0c" stroke-width="2.8"/>
+        <g fill="#1a0d05">
+          <circle cx="214" cy="190" r="2.2"/><circle cx="282" cy="190" r="2.2"/>
+          <circle cx="214" cy="215" r="2.2"/><circle cx="282" cy="215" r="2.2"/>
+        </g>
+      </g>
+      <!-- Tom 2 (right, slightly bigger) -->
+      <g>
+        <line x1="372" y1="172" x2="340" y2="155" stroke="#2a2a2a" stroke-width="2"/>
+        <ellipse cx="372" cy="227" rx="42" ry="10" fill="#3a1e0c"/>
+        <rect x="330" y="165" width="84" height="65" fill="url(#wood)" stroke="#2a1608" stroke-width="1.4"/>
+        <ellipse cx="372" cy="165" rx="42" ry="11" fill="url(#head)"/>
+        <ellipse cx="372" cy="165" rx="42" ry="11" fill="none" stroke="#3a1e0c" stroke-width="2.8"/>
+        <g fill="#1a0d05">
+          <circle cx="334" cy="186" r="2.2"/><circle cx="410" cy="186" r="2.2"/>
+          <circle cx="334" cy="216" r="2.2"/><circle cx="410" cy="216" r="2.2"/>
+        </g>
+      </g>
+
+      <!-- ===================== Snare (front-left, on stand) ===================== -->
+      <g>
+        <!-- Shell -->
+        <rect x="100" y="252" width="110" height="40" fill="url(#snareShell)" stroke="#3a3a3a" stroke-width="1.2" rx="1.5"/>
+        <!-- Snare wires hint at bottom -->
+        <line x1="100" y1="282" x2="210" y2="282" stroke="#a8a8a8" stroke-width="0.7"/>
+        <line x1="100" y1="285" x2="210" y2="285" stroke="#a8a8a8" stroke-width="0.7"/>
+        <line x1="100" y1="288" x2="210" y2="288" stroke="#a8a8a8" stroke-width="0.7"/>
+        <!-- Top head -->
+        <ellipse cx="155" cy="252" rx="55" ry="14" fill="url(#head)"/>
+        <!-- Hoop (silver rim) -->
+        <ellipse cx="155" cy="252" rx="55" ry="14" fill="none" stroke="#7a7a7a" stroke-width="3"/>
+        <ellipse cx="155" cy="252" rx="55" ry="14" fill="none" stroke="#cfcfcf" stroke-width="0.8"/>
+        <!-- Lugs -->
+        <g fill="#2a2a2a">
+          <circle cx="105" cy="270" r="2"/><circle cx="125" cy="275" r="2"/>
+          <circle cx="155" cy="278" r="2"/><circle cx="185" cy="275" r="2"/>
+          <circle cx="205" cy="270" r="2"/>
+        </g>
+        <!-- Strainer (snare release lever on the side) -->
+        <rect x="195" y="262" width="14" height="8" rx="1" fill="#2a2a2a"/>
+      </g>
+
+      <!-- ===================== Hi-hat (left) — pair of stacked cymbals ===================== -->
+      <g>
+        <!-- Bottom cymbal (slightly darker) -->
+        <ellipse cx="92" cy="222" rx="44" ry="11" fill="url(#cymbal)" opacity="0.85"/>
+        <ellipse cx="92" cy="222" rx="44" ry="11" fill="none" stroke="#5a4210" stroke-width="0.5"/>
+        <!-- Top cymbal -->
+        <ellipse cx="92" cy="212" rx="44" ry="11" fill="url(#cymbal)"/>
+        <!-- Center bell + bolt -->
+        <ellipse cx="92" cy="212" rx="13" ry="3.5" fill="#7d5c0f"/>
+        <circle cx="92" cy="212" r="2" fill="#3a2a05"/>
+        <!-- Concentric grooves -->
+        <ellipse cx="92" cy="212" rx="32" ry="8" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <ellipse cx="92" cy="212" rx="22" ry="5.5" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <text x="92" y="248" text-anchor="middle" font-size="8" fill="#888">hi-hat</text>
+      </g>
+
+      <!-- ===================== Crash (top-left, tilted) ===================== -->
+      <g transform="rotate(-15 55 135)">
+        <ellipse cx="55" cy="138" rx="58" ry="14" fill="url(#cymbal)" opacity="0.9"/>
+        <ellipse cx="55" cy="135" rx="58" ry="14" fill="url(#cymbal)"/>
+        <ellipse cx="55" cy="135" rx="16" ry="4" fill="#7d5c0f"/>
+        <circle cx="55" cy="135" r="2" fill="#3a2a05"/>
+        <ellipse cx="55" cy="135" rx="42" ry="10" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <ellipse cx="55" cy="135" rx="28" ry="6.5" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <ellipse cx="55" cy="135" rx="50" ry="12" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.5"/>
+      </g>
+      <text x="20" y="175" font-size="8" fill="#888">crash</text>
+
+      <!-- ===================== Ride (top-right, larger, slight tilt) ===================== -->
+      <g transform="rotate(10 540 155)">
+        <ellipse cx="540" cy="158" rx="68" ry="17" fill="url(#cymbal)" opacity="0.9"/>
+        <ellipse cx="540" cy="155" rx="68" ry="17" fill="url(#cymbal)"/>
+        <ellipse cx="540" cy="155" rx="20" ry="5" fill="#7d5c0f"/>
+        <circle cx="540" cy="155" r="2.5" fill="#3a2a05"/>
+        <ellipse cx="540" cy="155" rx="52" ry="13" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <ellipse cx="540" cy="155" rx="38" ry="9.5" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.7"/>
+        <ellipse cx="540" cy="155" rx="60" ry="15" fill="none" stroke="#a07a10" stroke-width="0.5" opacity="0.5"/>
+      </g>
+      <text x="585" y="190" font-size="8" fill="#888">ride</text>
+
+    </svg>
+  </div>
+  <p style="font-size:12px;color:#666;max-width:560px;text-align:center;line-height:1.5;">
+    Audience POV. Walnut shells, off-white heads with subtle dome shading, brass cymbals with concentric grooves,
+    silver snare shell with snare wires hinted underneath. Stands drawn as thin dark lines so the drums dominate.
+    No animation yet — once you approve the look we add: scale + glow + expanding ring on hits, sway for cymbals.
+  </p>
+</body>
+</html>

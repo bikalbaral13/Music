@@ -1,0 +1,10 @@
+X:1
+T:Alankaar 3 — Triples (Consecutive)
+C:Exercise
+M:none
+L:1/4
+Q:1/4=90
+K:C
+% Each group: three consecutive scale degrees, group start steps up by one.
+CDE | DEF | EFG | FGA | GAB | ABc | Bcd |
+dcB | cBA | BAG | AGF | GFE | FED | EDC |

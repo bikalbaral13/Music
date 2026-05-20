@@ -3,13 +3,18 @@ import abcjs from 'abcjs';
 import type { Song } from '../types';
 import { GM_INSTRUMENTS } from '../types';
 import PianoView from './PianoView';
+import FallingNotesView from './FallingNotesView';
+import { buildFallingNotes } from '../lib/fallingNotes';
 import Flute, { BANSURI_SCALES } from './Flute';
 import GuitarTabs from './GuitarTabs';
 import UkuleleTabs from './UkuleleTabs';
 import ViolinView from './ViolinView';
 import HarmoniumView from './HarmoniumView';
+import Drumset, { DRUM_PATTERNS } from './Drumset';
+import { DrumPlayer } from '../lib/drumAudio';
+import { CHORDS, STRUM_PATTERNS } from '../lib/guitarChords';
+import { GuitarStrumPlayer } from '../lib/guitarStrumAudio';
 import NoteBlocksView from './NoteBlocksView';
-import KeyWheel from './KeyWheel';
 import { transposeKey } from '../lib/midi';
 import {
   type Mode,
@@ -19,13 +24,12 @@ import {
   westernNameForPc,
   tonicPcFor,
 } from '../lib/notation';
+import { useAbcSheet } from '../hooks/useAbcSheet';
+import { useAbcSynth } from '../hooks/useAbcSynth';
+
+const DRUMSET_PROGRAM = 118;
 
 interface Props { song: Song; }
-
-// Loose typing — abcjs's CursorControl.onEvent uses NoteTimingEvent whose
-// midiPitches shape is wider than what we read here. Treat as any to avoid
-// fighting upstream type drift.
-type AbcEvent = any;
 
 function midiToNoteLetter(midi: number): string {
   const CHROMATIC: Record<number, string> = {
@@ -61,207 +65,203 @@ const IconRestart = () => (
 );
 
 export default function Player({ song }: Props) {
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const synthControlRef = useRef<any>(null);
-  const audioStartCtxRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const extraSynthsRef = useRef<any[]>([]);
+  const drumPlayerRef = useRef<DrumPlayer | null>(null);
+  const strumPlayerRef = useRef<GuitarStrumPlayer | null>(null);
 
   const [tempo, setTempo] = useState(song.tempo);
   const [transpose, setTranspose] = useState(0);
   const [instrument, setInstrument] = useState(0);
+  const [extraPrograms, setExtraPrograms] = useState<Set<number>>(new Set());
   const [showLabels, setShowLabels] = useState(true);
   const [capo, setCapo] = useState(0);
   const [bansuriScaleIdx, setBansuriScaleIdx] = useState(0);
   const bansuriScale = BANSURI_SCALES[bansuriScaleIdx];
+  const [drumPattern, setDrumPattern] = useState(DRUM_PATTERNS[0]);
+  const [chord, setChord] = useState(CHORDS[0]);
+  const [strumPattern, setStrumPattern] = useState(STRUM_PATTERNS[0]);
 
+  const [mutedVoices, setMutedVoices] = useState<Set<number>>(new Set());
   const [activeMidi, setActiveMidi] = useState<Set<number>>(new Set());
-  const [currentMs, setCurrentMs] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeFinger, setActiveFinger] = useState<number | null>(null);
+  const [pianoDisplay, setPianoDisplay] = useState<'normal' | 'falling'>('normal');
 
-  // Notation preferences live here so the Notes block and the Instrument
-  // visuals can both render the same label for the currently-sounding note.
   const [mode, setMode] = useState<Mode>('original');
   const [notation, setNotation] = useState<Notation>('western');
   const [spelling, setSpelling] = useState<Spelling>('auto');
 
-  // Reset local controls when song changes.
-  useEffect(() => {
-    setTempo(song.tempo);
-    setTranspose(0);
-  }, [song.id]);
+  const { sheetRef, visualObj, voices: songVoices, totalAtSongTempoMs, error: sheetError } =
+    useAbcSheet(song.abc, transpose);
 
-  const [visualObj, setVisualObj] = useState<any>(null);
-  useEffect(() => {
-    if (!sheetRef.current) return;
-    try {
-      const arr = abcjs.renderAbc(sheetRef.current, song.abc, {
-        responsive: 'resize',
-        visualTranspose: transpose,
-        add_classes: true,
-      });
-      setError(null);
-      setVisualObj(arr[0]);
-    } catch (e) {
-      setError((e as Error).message);
-      setVisualObj(null);
-    }
-  }, [song.abc, transpose]);
-
-  // Total playback duration in ms at the song's original tempo. Live tempo
-  // changes use synth warp, which scales wall-clock duration — so the slider
-  // max is derived from `totalAtSongTempoMs * (song.tempo / tempo)`.
-  const totalAtSongTempoMs = useMemo(() => {
-    if (!visualObj) return 0;
-    try {
-      const sec = typeof visualObj.getTotalTime === 'function' ? visualObj.getTotalTime() : 0;
-      return Math.max(0, (sec || 0) * 1000);
-    } catch { return 0; }
-  }, [visualObj]);
   const totalMs = totalAtSongTempoMs > 0 ? totalAtSongTempoMs * (song.tempo / tempo) : 0;
 
-  // Initialise the abcjs synth controller once we have a visualObj.
+  const synth = useAbcSynth({
+    visualObj,
+    abc: song.abc,
+    songTempoQpm: song.tempo,
+    tempo,
+    instrument,
+    transpose,
+    mutedVoices,
+    audioCtxRef,
+    totalMs,
+    onActivePitchesChange: setActiveMidi,
+    onActiveFingeringChange: setActiveFinger,
+  });
+  const { ready, isPlaying, currentMs, synthControlRef } = synth;
+  const error = sheetError ?? synth.error;
+
+  // Reset per-song UI state.
   useEffect(() => {
-    if (!visualObj || !abcjs.synth.supportsAudio()) return;
-    let cancelled = false;
+    setMutedVoices(new Set());
+    setTempo(song.tempo);
+    setTranspose(0);
+  }, [song.id, song.tempo]);
 
-    async function init() {
-      try {
-        const audioCtx = audioCtxRef.current ?? new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioCtxRef.current = audioCtx;
-
-        const cursorControl = {
-          beatSubdivisions: 2,
-          onStart: () => {
-            audioStartCtxRef.current = audioCtx.currentTime;
-            if (rafRef.current === null) tickFrame();
-            setIsPlaying(true);
-          },
-          onFinished: () => {
-            setActiveMidi(new Set());
-            setIsPlaying(false);
-          },
-          onEvent: (ev: AbcEvent) => {
-            if (!ev?.midiPitches) return;
-            const next = new Set<number>();
-            for (const p of ev.midiPitches) next.add(p.pitch);
-            setActiveMidi(next);
-          },
-        };
-
-        const synthControl = new abcjs.synth.SynthController();
-        synthControl.load('#abc-audio', cursorControl, {
-          displayLoop: false, displayRestart: true, displayPlay: true, displayProgress: true, displayWarp: true,
-        });
-        await synthControl.setTune(visualObj, false, {
-          qpm: song.tempo,
-          program: instrument,
-          midiTranspose: transpose,
-        });
-        if (!cancelled) {
-          synthControlRef.current = synthControl;
-          setReady(true);
-        }
-      } catch (e) {
-        setError(`Audio init failed: ${(e as Error).message}`);
-      }
+  // Space toggles play/pause when not typing in an input.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.code !== 'Space') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      e.preventDefault();
+      if (isPlaying) handlePause(); else if (ready) void handlePlay();
     }
-    init();
-
-    return () => {
-      cancelled = true;
-      try { synthControlRef.current?.pause(); } catch { /* noop */ }
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visualObj, instrument, transpose, song.tempo]);
+  }, [isPlaying, ready]);
 
-  useEffect(() => {
-    const ctrl = synthControlRef.current;
-    if (!ctrl) return;
-    const warpPercent = Math.round((tempo / song.tempo) * 100);
-    try { ctrl.setWarp(warpPercent); } catch { /* noop */ }
-  }, [tempo, song.tempo, ready]);
+  function stopExtras() {
+    for (const s of extraSynthsRef.current) {
+      try { s.stop(); } catch { /* noop */ }
+    }
+  }
 
-  function tickFrame() {
+  // Drumset is a groove loop, not a melody track. Active whenever it's the
+  // view instrument OR included in the extras set.
+  const drumsActive = instrument === DRUMSET_PROGRAM || extraPrograms.has(DRUMSET_PROGRAM);
+  function stopDrums() {
+    try { drumPlayerRef.current?.stop(); } catch { /* noop */ }
+  }
+  function startDrums() {
+    if (!drumsActive) return;
     const ctx = audioCtxRef.current;
     if (!ctx) return;
-    const elapsed = (ctx.currentTime - audioStartCtxRef.current) * 1000;
-    setCurrentMs(elapsed);
-    rafRef.current = requestAnimationFrame(tickFrame);
+    if (!drumPlayerRef.current) {
+      drumPlayerRef.current = new DrumPlayer(ctx, drumPattern, tempo);
+    } else {
+      drumPlayerRef.current.setPattern(drumPattern);
+      drumPlayerRef.current.setTempo(tempo);
+    }
+    drumPlayerRef.current.start(currentMs);
+  }
+
+  const strumActive = instrument === 24;
+  function stopStrum() {
+    try { strumPlayerRef.current?.stop(); } catch { /* noop */ }
+  }
+  function startStrum() {
+    if (!strumActive) return;
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    if (!strumPlayerRef.current) {
+      strumPlayerRef.current = new GuitarStrumPlayer(ctx, chord, strumPattern, tempo);
+    } else {
+      strumPlayerRef.current.setChord(chord);
+      strumPlayerRef.current.setPattern(strumPattern);
+      strumPlayerRef.current.setTempo(tempo);
+    }
+    void strumPlayerRef.current.start(currentMs);
+  }
+
+  async function rebuildExtras(qpm: number, programs: Set<number>) {
+    stopExtras();
+    extraSynthsRef.current = [];
+    if (!visualObj || programs.size === 0) return;
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const created: any[] = [];
+    for (const program of programs) {
+      if (program === DRUMSET_PROGRAM) continue;
+      try {
+        const s = new (abcjs as any).synth.CreateSynth();
+        await s.init({
+          audioContext: ctx,
+          visualObj,
+          options: { program, midiTranspose: transpose, qpm },
+        });
+        await s.prime();
+        created.push(s);
+      } catch (e) {
+        console.warn('Extra instrument failed to load', program, e);
+      }
+    }
+    extraSynthsRef.current = created;
   }
 
   useEffect(() => {
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      stopExtras();
+      stopDrums(); stopStrum();
+    };
   }, []);
 
+  // Live-update tāl/tempo on a running madal loop so changes apply immediately.
+  useEffect(() => { drumPlayerRef.current?.setPattern(drumPattern); }, [drumPattern]);
+  useEffect(() => {
+    drumPlayerRef.current?.setTempo(tempo);
+    strumPlayerRef.current?.setTempo(tempo);
+  }, [tempo]);
+  useEffect(() => { strumPlayerRef.current?.setChord(chord); }, [chord]);
+  useEffect(() => { strumPlayerRef.current?.setPattern(strumPattern); }, [strumPattern]);
+
+  // Drop the view instrument from the extras set so we never double-layer it.
+  useEffect(() => {
+    setExtraPrograms((prev) => {
+      if (!prev.has(instrument)) return prev;
+      const next = new Set(prev);
+      next.delete(instrument);
+      return next;
+    });
+  }, [instrument]);
+
   async function handlePlay() {
-    const ctx = audioCtxRef.current;
-    if (ctx?.state === 'suspended') await ctx.resume();
-    if (ctx && rafRef.current === null) {
-      audioStartCtxRef.current = ctx.currentTime - currentMs / 1000;
-      tickFrame();
-    }
     try {
-      await synthControlRef.current?.play();
-      setIsPlaying(true);
-    } catch (e) { setError((e as Error).message); }
+      await rebuildExtras(tempo, extraPrograms);
+      await synth.play();
+      for (const s of extraSynthsRef.current) {
+        try { s.start(); } catch { /* noop */ }
+      }
+      startDrums();
+      startStrum();
+    } catch (e) { /* handled by synth.error */ console.warn(e); }
   }
   function handlePause() {
-    try { synthControlRef.current?.pause(); } catch { /* noop */ }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    setIsPlaying(false);
+    synth.pause();
+    stopExtras();
+    stopDrums(); stopStrum();
   }
   async function handleRestart() {
-    // Hard-reset: pause, then re-init the tune so any in-flight scheduled
-    // audio is dropped and abcjs's internal cursor returns to 0. seek(0) alone
-    // leaves notes ringing and sometimes resumes playback.
-    const ctrl = synthControlRef.current;
-    try { ctrl?.pause(); } catch { /* noop */ }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
+    stopExtras();
+    stopDrums(); stopStrum();
     setActiveMidi(new Set());
-    setIsPlaying(false);
-    setCurrentMs(0);
-
-    if (ctrl && visualObj) {
-      try {
-        await ctrl.setTune(visualObj, false, {
-          qpm: song.tempo,
-          program: instrument,
-          midiTranspose: transpose,
-        });
-        const warpPercent = Math.round((tempo / song.tempo) * 100);
-        try { ctrl.setWarp(warpPercent); } catch { /* noop */ }
-      } catch (e) {
-        setError((e as Error).message);
-      }
-    }
-
-    const ctx = audioCtxRef.current;
-    if (ctx) audioStartCtxRef.current = ctx.currentTime;
+    await synth.restart();
+  }
+  function handleSeekMs(ms: number) {
+    if (totalMs <= 0) return;
+    handleSeek(Math.min(1, Math.max(0, ms / totalMs)));
   }
   function handleSeek(ratio: number) {
-    const ctrl = synthControlRef.current;
-    if (!ctrl || totalMs <= 0) return;
-    const clamped = Math.min(1, Math.max(0, ratio));
-    try { ctrl.seek(clamped, 'percent'); } catch { /* fallback below */ }
-    const ctx = audioCtxRef.current;
-    if (ctx) {
-      const newMs = clamped * totalMs;
-      audioStartCtxRef.current = ctx.currentTime - newMs / 1000;
-      setCurrentMs(newMs);
-    }
+    // Extras can't be seeked — silence them; the next Play call rebuilds them.
+    stopExtras();
+    stopDrums(); stopStrum();
+    synth.seekRatio(ratio);
   }
 
   const progressPct = totalMs > 0 ? Math.min(100, (currentMs / totalMs) * 100) : 0;
+  const beatIndex = tempo > 0 ? Math.floor(currentMs / (60000 / tempo)) : 0;
 
   // Render the same label the Notes block shows for the currently-sounding
   // pitch. Used by the Flute (and any other instrument) for its big readout.
@@ -269,8 +269,6 @@ export default function Player({ song }: Props) {
   function liveLabel(): React.ReactNode {
     if (activeMidi.size === 0) return null;
     const lowest = Math.min(...activeMidi);
-    // The synth has already shifted MIDI pitches by `transpose`, so its raw
-    // pitch class IS the sounded pitch class regardless of mode.
     const pc = ((lowest % 12) + 12) % 12;
     if (notation === 'sargam') {
       const tonicPc = tonicPcFor(mode, song.scale, transpose, saAnchorForFlute);
@@ -278,13 +276,33 @@ export default function Player({ song }: Props) {
       const s = SARGAM[degree];
       return <span className={`sargam ${s.mark}`}>{s.dev}</span>;
     }
-    // Western. ABC mode falls back to chromatic letter — we don't have the
-    // source token here, but matching pitch is close enough for a big readout.
     return westernNameForPc(pc, spelling, song.scale);
   }
 
+  const fallingNotes = useMemo(
+    () => (instrument === 0 && pianoDisplay === 'falling')
+      ? buildFallingNotes(song.abc, tempo)
+      : [],
+    [song.abc, tempo, instrument, pianoDisplay],
+  );
+
   function renderInstrumentVisual() {
-    if (instrument === 0) return <PianoView activeMidi={activeMidi} showLabels={showLabels} />;
+    if (instrument === 0) {
+      if (pianoDisplay === 'falling') {
+        return (
+          <div className="space-y-2">
+            <FallingNotesView
+              notes={fallingNotes}
+              currentMs={currentMs}
+              isPlaying={isPlaying}
+              showLabels={showLabels}
+            />
+            <PianoView activeMidi={activeMidi} showLabels={showLabels} bright />
+          </div>
+        );
+      }
+      return <PianoView activeMidi={activeMidi} showLabels={showLabels} />;
+    }
     if (instrument === 73) {
       return (
         <Flute
@@ -299,11 +317,78 @@ export default function Player({ song }: Props) {
         />
       );
     }
-    if (instrument === 24) return <GuitarTabs activeMidi={activeMidi} showLabels={showLabels} capo={capo} />;
-    if (instrument === 20) return <HarmoniumView activeMidi={activeMidi} showLabels={showLabels} isPumping={activeMidi.size > 0} />;
+    if (instrument === 24) return (
+      <GuitarTabs
+        activeMidi={activeMidi}
+        showLabels={showLabels}
+        capo={capo}
+        chord={chord}
+        onChordChange={setChord}
+        strumPattern={strumPattern}
+        onStrumPatternChange={setStrumPattern}
+        currentMs={currentMs}
+        tempo={tempo}
+        isPlaying={isPlaying}
+      />
+    );
+    if (instrument === 20) return <HarmoniumView activeMidi={activeMidi} showLabels={showLabels} isPumping={activeMidi.size > 0} activeFinger={activeFinger} />;
     if (instrument === 40) return <ViolinView activeMidi={activeMidi} showLabels={showLabels} />;
     if (instrument === 25) return <UkuleleTabs activeMidi={activeMidi} showLabels={showLabels} capo={capo} />;
+    if (instrument === DRUMSET_PROGRAM) return (
+      <Drumset
+        pattern={drumPattern}
+        onPatternChange={setDrumPattern}
+        currentMs={currentMs}
+        tempo={tempo}
+        isPlaying={isPlaying}
+      />
+    );
     return <PianoView activeMidi={activeMidi} showLabels={showLabels} />;
+  }
+
+  // silence unused-binding warning for synthControlRef when not consumed in JSX
+  void synthControlRef;
+
+  // Audio-only songs (e.g. Gemini Lyria output) bypass the ABC synth entirely.
+  if (song.audioUrl) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">{song.title}</h2>
+          {song.composer && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{song.composer}</p>
+          )}
+        </div>
+        <section className="section">
+          <header className="section-header">
+            <span className="section-title">Audio</span>
+          </header>
+          <div className="section-body space-y-3">
+            <audio
+              controls
+              src={song.audioUrl}
+              style={{ width: '100%' }}
+            />
+            <a
+              href={song.audioUrl}
+              download={`${song.title.replace(/[^\w-]+/g, '_')}.mp3`}
+              className="btn btn-subtle"
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+            >
+              ⬇ Download mp3
+            </a>
+            {song.abc && song.abc.includes('% Prompt:') && (
+              <details>
+                <summary className="text-xs" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  Generation prompt
+                </summary>
+                <pre className="tx-preview">{song.abc.split('\n').find((l) => l.startsWith('% Prompt:'))?.replace('% Prompt:', '').trim()}</pre>
+              </details>
+            )}
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -313,6 +398,60 @@ export default function Player({ song }: Props) {
         {song.composer && (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{song.composer}</p>
         )}
+      </div>
+
+      <div className="transport-bar inline" role="region" aria-label="Playback controls">
+        <div className="transport-bar-inner">
+          <div className="transport-bar-meta">
+            <div className="transport-bar-title" title={song.title}>{song.title}</div>
+            <div className="transport-bar-sub tabular">
+              <span
+                className={`beat-dot ${isPlaying ? 'pulse' : ''}`}
+                style={{ ['--bpm' as any]: tempo }}
+                aria-hidden
+              />
+              <span>♩ {beatIndex + 1}</span>
+              <span aria-hidden>·</span>
+              <span>{tempo} BPM</span>
+            </div>
+          </div>
+
+          <div className="transport-bar-controls">
+            <button onClick={handleRestart} className="transport" title="Restart" aria-label="Restart">
+              <IconRestart />
+            </button>
+            {isPlaying ? (
+              <button onClick={handlePause} className="transport primary" title="Pause (Space)" aria-label="Pause">
+                <IconPause />
+              </button>
+            ) : (
+              <button disabled={!ready} onClick={handlePlay} className="transport primary" title="Play (Space)" aria-label="Play">
+                <IconPlay />
+              </button>
+            )}
+          </div>
+
+          <div className="transport-bar-scrub">
+            <span className="text-xs tabular" style={{ color: 'var(--text-muted)', minWidth: '3rem' }}>
+              {fmtTime(currentMs)}
+            </span>
+            <input
+              type="range"
+              className="progress flex-1"
+              min={0}
+              max={1000}
+              step={1}
+              value={totalMs > 0 ? Math.min(1000, Math.round((currentMs / totalMs) * 1000)) : 0}
+              onChange={(e) => handleSeek(Number(e.target.value) / 1000)}
+              style={{ ['--progress' as any]: `${progressPct}%` }}
+              disabled={!ready || totalMs <= 0}
+              aria-label="Playback position"
+            />
+            <span className="text-xs tabular" style={{ color: 'var(--text-muted)', minWidth: '3rem', textAlign: 'right' }}>
+              {fmtTime(totalMs)}
+            </span>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -328,10 +467,9 @@ export default function Player({ song }: Props) {
         </div>
       )}
 
-      {/* ============================== NOTES BLOCK ============================== */}
       <section className="section">
         <header className="section-header">
-          <span className="section-title">Notes</span>
+          <span className="section-title">Song</span>
         </header>
         <div className="section-body">
           <NoteBlocksView
@@ -347,11 +485,22 @@ export default function Player({ song }: Props) {
             onNotationChange={setNotation}
             spelling={spelling}
             onSpellingChange={setSpelling}
+            onSeekMs={handleSeekMs}
+            onTempoChange={setTempo}
+            onTransposeChange={setTranspose}
+            voices={songVoices}
+            mutedVoices={mutedVoices}
+            onToggleVoice={(idx) => {
+              setMutedVoices((prev) => {
+                const next = new Set(prev);
+                if (next.has(idx)) next.delete(idx); else next.add(idx);
+                return next;
+              });
+            }}
           />
         </div>
       </section>
 
-      {/* ============================== INSTRUMENT BLOCK ============================== */}
       <section className="section">
         <header className="section-header">
           <span className="section-title">Instrument</span>
@@ -359,6 +508,27 @@ export default function Player({ song }: Props) {
         <div className="section-body space-y-3">
           <div className="instrument-canvas">{renderInstrumentVisual()}</div>
 
+          {instrument === 0 && (
+            <div className="surface-2 flex items-center gap-2 px-3 py-2">
+              <span className="label">Display</span>
+              <button
+                type="button"
+                className={`btn ${pianoDisplay === 'normal' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ padding: '0.25rem 0.7rem', fontSize: '0.75rem' }}
+                onClick={() => setPianoDisplay('normal')}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                className={`btn ${pianoDisplay === 'falling' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ padding: '0.25rem 0.7rem', fontSize: '0.75rem' }}
+                onClick={() => setPianoDisplay('falling')}
+              >
+                Falling Notes ✨
+              </button>
+            </div>
+          )}
           {instrument === 73 && (
             <p className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>
               Click any note around the embouchure to switch bansuri. Closer to{' '}
@@ -400,93 +570,35 @@ export default function Player({ song }: Props) {
               Show note labels
             </label>
           </div>
-        </div>
-      </section>
 
-      {/* ============================== SOUND BLOCK ============================== */}
-      <section className="section">
-        <header className="section-header">
-          <span className="section-title">Sound</span>
-        </header>
-        <div className="section-body space-y-4">
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={handleRestart}
-              className="transport"
-              title="Restart"
-              aria-label="Restart"
-            >
-              <IconRestart />
-            </button>
-            {isPlaying ? (
-              <button
-                onClick={handlePause}
-                className="transport primary"
-                title="Pause"
-                aria-label="Pause"
-              >
-                <IconPause />
-              </button>
-            ) : (
-              <button
-                disabled={!ready}
-                onClick={handlePlay}
-                className="transport primary"
-                title="Play"
-                aria-label="Play"
-              >
-                <IconPlay />
-              </button>
+          <div className="flex flex-col gap-2 pt-1">
+            <label className="label">Extra instruments (play alongside the view instrument)</label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {GM_INSTRUMENTS.filter((i) => i.value !== instrument).map((i) => {
+                const checked = extraPrograms.has(i.value);
+                return (
+                  <label key={i.value} className="inline-flex items-center gap-2 text-sm" style={{ color: 'var(--text)' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        setExtraPrograms((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(i.value); else next.delete(i.value);
+                          return next;
+                        });
+                      }}
+                    />
+                    {i.label}
+                  </label>
+                );
+              })}
+            </div>
+            {extraPrograms.size > 0 && (
+              <p className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                Extras start with the next Play and stop on Pause/Seek. Tempo changes apply on the next Play.
+              </p>
             )}
-            <div style={{ width: 44 }} aria-hidden />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs tabular" style={{ color: 'var(--text-muted)', minWidth: '3rem' }}>
-              {fmtTime(currentMs)}
-            </span>
-            <input
-              type="range"
-              className="progress flex-1"
-              min={0}
-              max={1000}
-              step={1}
-              value={totalMs > 0 ? Math.min(1000, Math.round((currentMs / totalMs) * 1000)) : 0}
-              onChange={(e) => handleSeek(Number(e.target.value) / 1000)}
-              style={{ ['--progress' as any]: `${progressPct}%` }}
-              disabled={!ready || totalMs <= 0}
-              aria-label="Playback position"
-            />
-            <span className="text-xs tabular" style={{ color: 'var(--text-muted)', minWidth: '3rem', textAlign: 'right' }}>
-              {fmtTime(totalMs)}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-            <div className="flex flex-col gap-1.5">
-              <label className="label tabular">Tempo: {tempo} BPM</label>
-              <input type="range" min={40} max={240} value={tempo}
-                onChange={(e) => setTempo(Number(e.target.value))}/>
-            </div>
-
-            <div className="flex flex-col gap-1.5 md:col-span-1">
-              <label className="label tabular">
-                Key: <span style={{ color: 'var(--text)' }}>{transposeKey(song.scale, transpose)}</span>
-                {transpose !== 0 && (
-                  <span style={{ color: 'var(--text-subtle)' }}>
-                    {' '}({transpose > 0 ? '+' : ''}{transpose} semitones)
-                  </span>
-                )}
-              </label>
-              <KeyWheel
-                originalScale={song.scale}
-                transpose={transpose}
-                onChange={setTranspose}
-              />
-              <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
-                Original: {song.scale}
-              </span>
-            </div>
           </div>
         </div>
       </section>

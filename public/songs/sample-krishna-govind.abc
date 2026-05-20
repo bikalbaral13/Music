@@ -1,0 +1,20 @@
+X:1
+T:Shri Krishna Govind Hare Murari
+C:Traditional bhajan
+M:4/4
+L:1/8
+Q:1/4=90
+K:C
+% Sthayi (refrain) — Sa = C; original scale F#, Kaherva 8-beat
+% ,P S S S S S  G R G R S ,N ,N
+G, C C C C C  E D E D C B, B, |
+% ,N R R G M G  R G R S S S
+B, D D E F E  D E D C C C2 |
+% Antara
+% G G P P P P P P  D P M G R
+E E G G G G G G  A G F E D2 |
+% P P S' S' S' P P P P  D P M G R
+G G c c c G G G G  A G F E D2 |
+% Return to sthayi
+G, C C C C C  E D E D C B, B, |
+B, D D E F E  D E D C C C2 |]
